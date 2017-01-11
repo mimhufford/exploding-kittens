@@ -28,12 +28,31 @@ io.on('connection', socket => {
             switch (data.data.toUpperCase()) {
                 case 'DONE':
                     if (isTheirTurn == false) break
+                    if (current.hand.includes('BOMB')) {
+                        io.emit('state', current.id + " EXPLODED!")
+                        turn = next.id
+                        io.emit('state', `${turn} to play`)
+                        break
+                    }
                     current.hand.push(...state.deck.slice(0, current.take))
-                    emitHands(state.players)
                     state.deck.splice(0, current.take)
+                    if (current.hand.includes('BOMB')) {
+                        io.emit('state', current.id + " PICKED UP A BOMB!")
+                        io.emit('state', `${turn} STILL TO PLAY`)
+                        break
+                    }
                     current.take = 1
                     turn = next.id
                     io.emit('state', `${turn} to play`)
+                    break
+                case 'DEFUSE':
+                    if (isTheirTurn == false) break
+                    if (current.hand.includes('BOMB') && current.hand.includes('DEFUSE')) {
+                        current.hand.splice(current.hand.indexOf('BOMB'), 1)
+                        current.hand.splice(current.hand.indexOf('DEFUSE'), 1)
+                        state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
+                        io.emit('state', 'BOMB DEFUSED AND ADDED BACK INTO DECK AT HALFWAY POINT (bit crap)')
+                    }
                     break
                 case 'COUNT':
                     current.socket.emit('state', state.deck.length)
@@ -42,7 +61,6 @@ io.on('connection', socket => {
                     if (isTheirTurn && current.hand.includes('FUTURE')) {
                         current.hand.splice(current.hand.indexOf('FUTURE'), 1)
                         current.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
-                        emitHands(state.players)
                     }
                     break
                 case 'SHUFFLE':
@@ -50,14 +68,12 @@ io.on('connection', socket => {
                         current.hand.splice(current.hand.indexOf('SHUFFLE'), 1)
                         state.deck = _.shuffle(state.deck)
                         io.emit('state', current.id + ' SHUFFLED THE DECK')
-                        emitHands(state.players)
                     }
                     break
                 case 'FAVOUR':
                     if (isTheirTurn && current.hand.includes('FAVOUR')) {
                         current.hand.splice(current.hand.indexOf('FAVOUR'), 1)
                         current.hand.push(next.hand.pop())
-                        emitHands(state.players)
                         next.socket.emit('state', "YOU WERE FAVOURED FROM.")
                     }
                     break
@@ -65,7 +81,6 @@ io.on('connection', socket => {
                     if (isTheirTurn && current.hand.includes('SKIP')) {
                         current.hand.splice(current.hand.indexOf('SKIP'), 1)
                         current.take = Math.max(0, current.take - 1)
-                        emitHands(state.players)
                     }
                     break
                 case 'ATTACK':
@@ -73,7 +88,6 @@ io.on('connection', socket => {
                         current.hand.splice(current.hand.indexOf('ATTACK'), 1)
                         current.take = 0
                         next.take = 2
-                        emitHands(state.players)
                         next.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
                     }
                     break
@@ -92,7 +106,6 @@ io.on('connection', socket => {
                             // steal card from the next player (needs improving obviously)
                             current.hand.push(next.hand.pop())
 
-                            emitHands(state.players)
                             next.socket.emit('state', "YOU WERE STOLEN FROM.")
                         }
                     }
@@ -101,7 +114,10 @@ io.on('connection', socket => {
                     io.emit('state', `${socket.id}: ${data.data}`)
                     break
             }
+
+            emitHands(state.players)
         }
+
         if (data.data == 'debug') console.log(state)
         if (data.data == 'quit') active = false
         if (data.data == 'start') {
