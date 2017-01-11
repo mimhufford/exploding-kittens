@@ -20,15 +20,6 @@ io.on('connection', socket => {
     io.emit('state', `${socket.id} entered the game. There are now ${players.length} players.`)
 
     socket.on('data', data => {
-        if (data.data == 'debug') console.log(state)
-        if (data.data == 'quit') active = false
-        if (data.data == 'start') {
-            active = true
-            state = setup(players)
-            turn = players[0].id
-            io.emit('state', `${turn} to play`)
-            emitHands(state.players)
-        }
         if (active) {
             const current = state.players.filter(p => p.id == data.id)[0]
             const next = state.players.filter(p => p.player == (current.player + 1) % state.players.length)[0]
@@ -107,8 +98,18 @@ io.on('connection', socket => {
                     }
                     break
                 default:
+                    io.emit('state', `${socket.id}: ${data.data}`)
                     break
             }
+        }
+        if (data.data == 'debug') console.log(state)
+        if (data.data == 'quit') active = false
+        if (data.data == 'start') {
+            active = true
+            state = setup(players)
+            turn = players[0].id
+            io.emit('state', `${turn} to play`)
+            emitHands(state.players)
         }
     })
 
