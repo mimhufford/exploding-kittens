@@ -4,14 +4,15 @@ const http = require('http').Server(app);
 const io = require('socket.io')(http);
 const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout })
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html')
-})
+app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 
 let players = []
 let state
 let active = false
 let turn
+
+const emitHands = players => players.forEach(p => p.socket.emit('hand', p.hand.join(' ')))
+const emitPlayerChange = (players, whosTurn) => players.forEach(p => p == whosTurn ? undefined : undefined)
 
 io.on('connection', socket => {
     players.push({ id: socket.id, socket })
@@ -26,7 +27,7 @@ io.on('connection', socket => {
             state = setup(players)
             turn = players[0].id
             io.emit('state', `${turn} to play`)
-            state.players.forEach(p => p.socket.emit('state', "YOUR CARDS: " + p.hand))
+            emitHands(state.players)
         }
         if (active) {
             const current = state.players.filter(p => p.id == data.id)[0]
@@ -37,7 +38,7 @@ io.on('connection', socket => {
                 case 'DONE':
                     if (isTheirTurn == false) break
                     current.hand.push(...state.deck.slice(0, current.take))
-                    current.socket.emit('state', "YOUR CARDS: " + current.hand)
+                    emitHands(state.players)
                     state.deck.splice(0, current.take)
                     current.take = 1
                     turn = next.id
@@ -50,7 +51,7 @@ io.on('connection', socket => {
                     if (isTheirTurn && current.hand.includes('FUTURE')) {
                         current.hand.splice(current.hand.indexOf('FUTURE'), 1)
                         current.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
-                        current.socket.emit('state', "YOUR CARDS: " + current.hand)
+                        emitHands(state.players)
                     }
                     break
                 case 'SHUFFLE':
@@ -58,22 +59,22 @@ io.on('connection', socket => {
                         current.hand.splice(current.hand.indexOf('SHUFFLE'), 1)
                         state.deck = _.shuffle(state.deck)
                         io.emit('state', current.id + ' SHUFFLED THE DECK')
-                        current.socket.emit('state', "YOUR CARDS: " + current.hand)
+                        emitHands(state.players)
                     }
                     break
                 case 'FAVOUR':
                     if (isTheirTurn && current.hand.includes('FAVOUR')) {
                         current.hand.splice(current.hand.indexOf('FAVOUR'), 1)
                         current.hand.push(next.hand.pop())
-                        current.socket.emit('state', "YOUR CARDS: " + current.hand)
-                        next.socket.emit('state', "YOU WERE FAVOURED FROM. YOUR CARDS: " + next.hand)
+                        emitHands(state.players)
+                        next.socket.emit('state', "YOU WERE FAVOURED FROM.")
                     }
                     break
                 case 'SKIP':
                     if (isTheirTurn && current.hand.includes('SKIP')) {
                         current.hand.splice(current.hand.indexOf('SKIP'), 1)
                         current.take = Math.max(0, current.take - 1)
-                        current.socket.emit('state', "YOUR CARDS: " + current.hand)
+                        emitHands(state.players)
                     }
                     break
                 case 'ATTACK':
@@ -81,7 +82,7 @@ io.on('connection', socket => {
                         current.hand.splice(current.hand.indexOf('ATTACK'), 1)
                         current.take = 0
                         next.take = 2
-                        current.socket.emit('state', "YOUR CARDS: " + current.hand)
+                        emitHands(state.players)
                         next.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
                     }
                     break
@@ -100,8 +101,8 @@ io.on('connection', socket => {
                             // steal card from the next player (needs improving obviously)
                             current.hand.push(next.hand.pop())
 
-                            current.socket.emit('state', "YOUR CARDS: " + current.hand)
-                            next.socket.emit('state', "YOU WERE STOLEN FROM. YOUR CARDS: " + next.hand)
+                            emitHands(state.players)
+                            next.socket.emit('state', "YOU WERE STOLEN FROM.")
                         }
                     }
                     break
