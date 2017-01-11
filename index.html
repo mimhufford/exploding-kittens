@@ -27,9 +27,6 @@
     <script>
         const socket = io();
 
-        let id = -1;
-
-        socket.on('id', function (data) { id = data; })
         socket.on('state', function (data) {
             $('#messages').append($('<li>').text(data));
             $("html, body").animate({ scrollTop: $(document).height() }, "slow");

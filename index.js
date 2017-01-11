@@ -117,7 +117,7 @@ io.on('connection', socket => {
     })
 })
 
-http.listen(3000, () => console.log('Example app listening on port 3000!'))
+http.listen(3000)
 
 const setup = players => {
     const cards = {
