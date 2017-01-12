@@ -12,7 +12,7 @@ let active = false
 let turn
 
 const emitHands = players => players.forEach(p => p.socket.emit('hand', p.hand.join(' ')))
-const emitPlayerChange = (players, whosTurn) => players.forEach(p => p == whosTurn ? undefined : undefined)
+const emitTurn = whosTurn => players.forEach(p => p.socket.emit('turn', whosTurn))
 
 io.on('connection', socket => {
     players.push({ id: socket.id, socket })
@@ -31,19 +31,16 @@ io.on('connection', socket => {
                     if (current.hand.includes('BOMB')) {
                         io.emit('state', current.id + " EXPLODED!")
                         turn = next.id
-                        io.emit('state', `${turn} to play`)
                         break
                     }
                     current.hand.push(...state.deck.slice(0, current.take))
                     state.deck.splice(0, current.take)
                     if (current.hand.includes('BOMB')) {
                         io.emit('state', current.id + " PICKED UP A BOMB!")
-                        io.emit('state', `${turn} STILL TO PLAY`)
                         break
                     }
                     current.take = 1
                     turn = next.id
-                    io.emit('state', `${turn} to play`)
                     break
                 case 'DEFUSE':
                     if (isTheirTurn == false) break
@@ -115,6 +112,7 @@ io.on('connection', socket => {
                     break
             }
 
+            emitTurn(turn)
             emitHands(state.players)
         }
 
@@ -126,6 +124,7 @@ io.on('connection', socket => {
             turn = players[0].id
             io.emit('state', `${turn} to play`)
             emitHands(state.players)
+            emitTurn(turn)
         }
     })
 

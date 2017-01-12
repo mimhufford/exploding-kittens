@@ -35,6 +35,7 @@
         })
 
         socket.on('hand', hand => $('#cards').html(hand))
+        socket.on('turn', id => $('form').css('background-color', id == socket.id ? 'green' : 'black'))
 
         $('form').submit(() => {
             socket.emit('data', { id: socket.id, data: $('#data').val() })
