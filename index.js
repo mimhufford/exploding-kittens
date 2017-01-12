@@ -58,13 +58,14 @@ io.on('connection', socket => {
                     if (isTheirTurn && current.hand.includes('FUTURE')) {
                         current.hand.splice(current.hand.indexOf('FUTURE'), 1)
                         current.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
+                        io.emit('state', `${current.id} VIEWED THE FUTURE`)
                     }
                     break
                 case 'SHUFFLE':
                     if (isTheirTurn && current.hand.includes('SHUFFLE')) {
                         current.hand.splice(current.hand.indexOf('SHUFFLE'), 1)
                         state.deck = _.shuffle(state.deck)
-                        io.emit('state', current.id + ' SHUFFLED THE DECK')
+                        io.emit('state', `${current.id} SHUFFLED THE DECK`)
                     }
                     break
                 case 'FAVOUR':
@@ -72,12 +73,14 @@ io.on('connection', socket => {
                         current.hand.splice(current.hand.indexOf('FAVOUR'), 1)
                         current.hand.push(next.hand.pop())
                         next.socket.emit('state', "YOU WERE FAVOURED FROM.")
+                        io.emit('state', `${current.id} ASKED FOR A FAVOUR FROM ${next.id}`)
                     }
                     break
                 case 'SKIP':
                     if (isTheirTurn && current.hand.includes('SKIP')) {
                         current.hand.splice(current.hand.indexOf('SKIP'), 1)
                         current.take = Math.max(0, current.take - 1)
+                        io.emit('state', `${current.id} SKIPPED`)
                     }
                     break
                 case 'ATTACK':
@@ -86,6 +89,7 @@ io.on('connection', socket => {
                         current.take = 0
                         next.take = 2
                         next.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
+                        io.emit('state', `${current.id} ATTACKED`)
                     }
                     break
                 case 'PAIR':
@@ -104,6 +108,7 @@ io.on('connection', socket => {
                             current.hand.push(next.hand.pop())
 
                             next.socket.emit('state', "YOU WERE STOLEN FROM.")
+                            io.emit('state', `${current.id} STOLE A CARD FROM ${next.id}`)
                         }
                     }
                     break
