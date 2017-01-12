@@ -159,5 +159,5 @@ const setup = players => {
     // add extra defuse cards
     deck.push(...Array(players.length == 2 ? 2 : 6 - players.length).fill('DEFUSE'))
 
-    return { deck, players: gamePlayers }
+    return { deck: _.shuffle(deck), players: gamePlayers }
 }
