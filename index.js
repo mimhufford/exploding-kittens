@@ -2,140 +2,168 @@ const _ = require('lodash')
 const app = require('express')()
 const http = require('http').Server(app);
 const io = require('socket.io')(http);
-const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout })
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 
-let players = []
+let connections = []
 let state
 let active = false
 let turn
 
-const emitHands = players => players.forEach(p => p.socket.emit('hand', p.hand.join(' ')))
-const emitTurn = whosTurn => players.forEach(p => p.socket.emit('turn', whosTurn))
+const emitHands = players => players.forEach(p => p.socket.emit('hand', p.hand))
+const emitTurn = whosTurn => connections.forEach(p => p.socket.emit('turn', whosTurn))
 
 io.on('connection', socket => {
-    players.push({ id: socket.id, socket })
-    socket.emit('state', `You are ${socket.id}`)
-    io.emit('state', `${socket.id} entered the game. There are now ${players.length} players.`)
+
+    socket.emit('state', 'ENTER A USERNAME TO JOIN THE GAME')
+
+    socket.on('username', username => {
+        // TODO check for no overlaps?
+        socket.username = username.data
+        socket.emit('usernameConfirmed', socket.username)
+
+        connections.push({ id: socket.id, socket })
+        io.emit('state', `${socket.username} entered the game. There are now ${connections.length} players.`)
+    })
 
     socket.on('data', data => {
         if (active) {
-            const current = state.players.filter(p => p.id == data.id)[0]
-            const next = state.players.filter(p => p.player == (current.player + 1) % state.players.length)[0]
-            const isTheirTurn = turn == current.id
+            const curPlayer = state.players.filter(p => p.id == data.id)[0]
+            const nextPlayer = state.players.filter(p => p.player == (curPlayer.player + 1) % state.players.length)[0]
+            const otherPlayers = state.players.filter(p => p.id != data.id)
+            const isTheirTurn = turn == curPlayer.id
 
             switch (data.data.toUpperCase()) {
                 case 'DONE':
                     if (isTheirTurn == false) break
-                    if (current.hand.includes('BOMB')) {
-                        io.emit('state', current.id + " EXPLODED!")
-                        turn = next.id
+                    if (curPlayer.hand.includes('BOMB')) {
+                        io.emit('state', curPlayer.socket.username + " EXPLODED!")
+                        turn = nextPlayer.id
                         break
                     }
-                    current.hand.push(...state.deck.slice(0, current.take))
-                    state.deck.splice(0, current.take)
-                    if (current.hand.includes('BOMB')) {
-                        io.emit('state', current.id + " PICKED UP A BOMB!")
+                    curPlayer.hand.push(...state.deck.slice(0, curPlayer.take))
+                    state.deck.splice(0, curPlayer.take)
+                    if (curPlayer.hand.includes('BOMB')) {
+                        io.emit('state', curPlayer.socket.username + " PICKED UP A BOMB!")
                         break
                     }
-                    current.take = 1
-                    turn = next.id
+                    else {
+                        io.emit('state', `${curPlayer.socket.username} ENDED THEIR TURN BY PICKING UP ${curPlayer.take} CARDS`)
+                    }
+                    curPlayer.take = 1
+                    turn = nextPlayer.id
                     break
                 case 'DEFUSE':
                     if (isTheirTurn == false) break
-                    if (current.hand.includes('BOMB') && current.hand.includes('DEFUSE')) {
-                        current.hand.splice(current.hand.indexOf('BOMB'), 1)
-                        current.hand.splice(current.hand.indexOf('DEFUSE'), 1)
+                    if (curPlayer.hand.includes('BOMB') && curPlayer.hand.includes('DEFUSE')) {
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('BOMB'), 1)
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('DEFUSE'), 1)
                         state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
                         io.emit('state', 'BOMB DEFUSED AND ADDED BACK INTO DECK AT HALFWAY POINT (bit crap)')
                     }
                     break
                 case 'COUNT':
-                    current.socket.emit('state', state.deck.length)
+                    curPlayer.socket.emit('state', state.deck.length)
                     break
                 case 'FUTURE':
-                    if (isTheirTurn && current.hand.includes('FUTURE')) {
-                        current.hand.splice(current.hand.indexOf('FUTURE'), 1)
-                        current.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
-                        io.emit('state', `${current.id} VIEWED THE FUTURE`)
+                    if (isTheirTurn && curPlayer.hand.includes('FUTURE')) {
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('FUTURE'), 1)
+                        curPlayer.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
+                        io.emit('state', `${curPlayer.socket.username} VIEWED THE FUTURE`)
                     }
                     break
                 case 'SHUFFLE':
-                    if (isTheirTurn && current.hand.includes('SHUFFLE')) {
-                        current.hand.splice(current.hand.indexOf('SHUFFLE'), 1)
+                    if (isTheirTurn && curPlayer.hand.includes('SHUFFLE')) {
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('SHUFFLE'), 1)
                         state.deck = _.shuffle(state.deck)
-                        io.emit('state', `${current.id} SHUFFLED THE DECK`)
+                        io.emit('state', `${curPlayer.socket.username} SHUFFLED THE DECK`)
                     }
                     break
                 case 'FAVOUR':
-                    if (isTheirTurn && current.hand.includes('FAVOUR')) {
-                        current.hand.splice(current.hand.indexOf('FAVOUR'), 1)
-                        current.hand.push(next.hand.pop())
-                        next.socket.emit('state', "YOU WERE FAVOURED FROM.")
-                        io.emit('state', `${current.id} ASKED FOR A FAVOUR FROM ${next.id}`)
+                    if (isTheirTurn && curPlayer.hand.includes('FAVOUR')) {
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('FAVOUR'), 1)
+                        curPlayer.hand.push(nextPlayer.hand.pop())
+
+                        const test = "WHO FROM?\n" + otherPlayers.map(p => p.player + ": " + p.socket.username).join("\n")
+                        socket.emit('state', test)
+
+                        nextPlayer.socket.emit('state', "YOU WERE FAVOURED FROM.")
+                        io.emit('state', `${curPlayer.socket.username} ASKED FOR A FAVOUR FROM ${nextPlayer.socket.username}`)
                     }
                     break
                 case 'SKIP':
-                    if (isTheirTurn && current.hand.includes('SKIP')) {
-                        current.hand.splice(current.hand.indexOf('SKIP'), 1)
-                        current.take = Math.max(0, current.take - 1)
-                        io.emit('state', `${current.id} SKIPPED`)
+                    if (isTheirTurn && curPlayer.hand.includes('SKIP')) {
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('SKIP'), 1)
+                        curPlayer.take = Math.max(0, curPlayer.take - 1)
+                        io.emit('state', `${curPlayer.socket.username} SKIPPED`)
                     }
                     break
                 case 'ATTACK':
-                    if (isTheirTurn && current.hand.includes('ATTACK')) {
-                        current.hand.splice(current.hand.indexOf('ATTACK'), 1)
-                        current.take = 0
-                        next.take = 2
-                        next.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
-                        io.emit('state', `${current.id} ATTACKED`)
+                    if (isTheirTurn && curPlayer.hand.includes('ATTACK')) {
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('ATTACK'), 1)
+                        curPlayer.take = 0
+                        nextPlayer.take = 2
+                        nextPlayer.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
+                        io.emit('state', `${curPlayer.socket.username} ATTACKED`)
                     }
                     break
+                case 'BIKINI':
+                case 'ZOMBIE':
+                case 'MOMMA':
+                case 'SCHRODINGER':
+                case 'BLADDER':
                 case 'PAIR':
                     if (isTheirTurn) {
 
                         // search for pairs
-                        const pairs = _(current.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
+                        const pairs = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
                         const catPairs = _.intersection(pairs, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
 
                         if (catPairs.length > 0) {
                             // remove the 2 cards
-                            current.hand = current.hand.filter((card, index) => index != current.hand.indexOf(catPairs[0]))
-                            current.hand = current.hand.filter((card, index) => index != current.hand.indexOf(catPairs[0]))
+                            curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
+                            curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
 
                             // steal card from the next player (needs improving obviously)
-                            current.hand.push(next.hand.pop())
+                            curPlayer.hand.push(nextPlayer.hand.pop())
 
-                            next.socket.emit('state', "YOU WERE STOLEN FROM.")
-                            io.emit('state', `${current.id} STOLE A CARD FROM ${next.id}`)
+                            nextPlayer.socket.emit('state', "YOU WERE STOLEN FROM.")
+                            io.emit('state', `${curPlayer.socket.username} STOLE A CARD FROM ${nextPlayer.socket.username}`)
                         }
                     }
                     break
+                case 'QUIT':
+                    active = false
+                    break
+                case 'DEBUG':
+                    console.log(state)
+                    break
                 default:
-                    io.emit('state', `${socket.id}: ${data.data}`)
+                    io.emit('state', `${socket.username}: ${data.data}`)
                     break
             }
 
             emitTurn(turn)
             emitHands(state.players)
         }
-
-        if (data.data == 'debug') console.log(state)
-        if (data.data == 'quit') active = false
-        if (data.data == 'start') {
+        // not active
+        else if (data.data == 'start') {
             active = true
-            state = setup(players)
-            turn = players[0].id
-            io.emit('state', `${turn} to play`)
+            state = setup(connections)
+            turn = _.shuffle(connections.filter(p => p.socket.username))[0].id
+            io.emit('state', `GAME STARTED, ${connections.filter(p => p.id === turn)[0].socket.username} TO PLAY FIRST`)
             emitHands(state.players)
             emitTurn(turn)
         }
+        else
+            io.emit('state', `${socket.username}: ${data.data}`)
     })
 
     socket.on('disconnect', () => {
-        io.emit('state', `${socket.id} left the game. There are now ${players.length} players.`)
-        players = players.filter(p => p.id != socket.id)
+        if (socket.username) {
+            connections = connections.filter(p => p.id != socket.id)
+            io.emit('state', `${socket.username} left the game. There are now ${connections.length} players.`)
+        }
     })
 })
 

@@ -9,6 +9,7 @@
       form { background: #000; padding: 5px; position: fixed; bottom: 0; width: 100%; }
       form input { border: 0; padding: 10px; width: 100%; }
       form button {display: none; }
+      .card { margin:2px; padding: 3px; }
       #cards { position: fixed; bottom: 50px; width: 100%; text-align: center; }
       #messages { list-style-type: none; margin: 0; margin-bottom: 80px; padding: 0; }
       #messages li { padding: 5px 10px; }
@@ -29,19 +30,30 @@
     <script>
         const socket = io()
 
+        socket.on('usernameConfirmed', username => socket.username = username)
+
         socket.on('state', data => {
             $('#messages').append($('<li>').text(data))
             $("html, body").animate({ scrollTop: $(document).height() }, "slow")
         })
 
-        socket.on('hand', hand => $('#cards').html(hand))
+        socket.on('hand', hand => {
+            $('#cards').empty()
+            hand.forEach(card => $('#cards').append("<button class='card' onclick=playCard('" + card + "')>" + card + "</button>"))
+        })
+
         socket.on('turn', id => $('form').css('background-color', id == socket.id ? 'green' : 'black'))
 
         $('form').submit(() => {
-            socket.emit('data', { id: socket.id, data: $('#data').val() })
+            if (socket.username == undefined)
+                socket.emit('username', { id: socket.id, data: $('#data').val() })
+            else
+                socket.emit('data', { id: socket.id, data: $('#data').val() })
             $('#data').val('')
             return false
         })
+
+        const playCard = card => socket.emit('data', { id: socket.id, data: card })
     </script>
 </body>
 
