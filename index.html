@@ -11,7 +11,7 @@
       form button {display: none; }
       .card { margin:2px; padding: 3px; }
       #cards { position: fixed; bottom: 50px; width: 100%; text-align: center; }
-      #messages { list-style-type: none; margin: 0; margin-bottom: 80px; padding: 0; }
+      #messages { list-style-type: none; margin: 0; margin-bottom: 150px; padding: 0; }
       #messages li { padding: 5px 10px; }
       #messages li:nth-child(odd) { background: #eee; }
     </style>
@@ -40,6 +40,7 @@
         socket.on('hand', hand => {
             $('#cards').empty()
             hand.forEach(card => $('#cards').append("<button class='card' onclick=playCard('" + card + "')>" + card + "</button>"))
+            $('#cards').append("<br/><button class='card' onclick=playCard('DONE')>END YOUR TURN</button>")
         })
 
         socket.on('turn', id => $('form').css('background-color', id == socket.id ? 'green' : 'black'))
