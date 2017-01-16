@@ -5,13 +5,25 @@ const io = require('socket.io')(http);
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 
-let connections = []
-let state
-let active = false
-let turn
+// const playerFormat = {
+//     hand: [],                      // current hand [string, string, etc...]
+//     username: "Jim Bob",           // also in socket
+//     id: "hjgFGY567fgFkj5678fGHj",  // unique id hoisted out of socket
+//     pickup: 1,                     // how many to pick up at end of turn
+//     socket: {},                    // socket.io object
+// }
 
-const emitHands = players => players.forEach(p => p.socket.emit('hand', p.hand))
-const emitTurn = whosTurn => connections.forEach(p => p.socket.emit('turn', whosTurn))
+const state = {
+    history: [],         // previous states
+    observers: [],       // socket connections staging ground - moved to players upon start
+    players: [],         // socket connections with a username + game details
+    deck: [],            // current deck [string, string, etc...]
+    gameActive: false,   // currently in a game?
+    whosTurn: undefined  // who's turn is it?
+}
+
+const emitHands = players => state.players.forEach(p => p.socket.emit('hand', p.hand))
+const emitTurn = whosTurn => state.players.forEach(p => p.socket.emit('turn', whosTurn))
 
 io.on('connection', socket => {
 
@@ -22,16 +34,16 @@ io.on('connection', socket => {
         socket.username = username.data
         socket.emit('usernameConfirmed', socket.username)
 
-        connections.push({ id: socket.id, socket })
-        io.emit('state', `${socket.username} entered the game. There are now ${connections.length} players.`)
+        state.observers.push(socket)
+        io.emit('state', `${socket.username} entered the game. There are now ${state.observers.length} players.`)
     })
 
     socket.on('data', data => {
-        if (active) {
+        if (state.gameActive) {
             const curPlayer = state.players.filter(p => p.id == data.id)[0]
-            const nextPlayer = state.players.filter(p => p.player == (curPlayer.player + 1) % state.players.length)[0]
+            const nextPlayer = state.players[(state.players.indexOf(curPlayer) + 1) % state.players.length]
             const otherPlayers = state.players.filter(p => p.id != data.id)
-            const isTheirTurn = turn == curPlayer.id
+            const isTheirTurn = state.whosTurn == curPlayer.id
 
             switch (data.data.toUpperCase()) {
                 case 'DONE':
@@ -41,17 +53,17 @@ io.on('connection', socket => {
                         turn = nextPlayer.id
                         break
                     }
-                    curPlayer.hand.push(...state.deck.slice(0, curPlayer.take))
-                    state.deck.splice(0, curPlayer.take)
+                    curPlayer.hand.push(...state.deck.slice(0, curPlayer.pickup))
+                    state.deck.splice(0, curPlayer.pickup)
                     if (curPlayer.hand.includes('BOMB')) {
                         io.emit('state', curPlayer.socket.username + " PICKED UP A BOMB!")
                         break
                     }
                     else {
-                        io.emit('state', `${curPlayer.socket.username} ENDED THEIR TURN BY PICKING UP ${curPlayer.take} CARDS`)
+                        io.emit('state', `${curPlayer.socket.username} ENDED THEIR TURN BY PICKING UP ${curPlayer.pickup} CARDS`)
                     }
-                    curPlayer.take = 1
-                    turn = nextPlayer.id
+                    curPlayer.pickup = 1
+                    state.whosTurn = nextPlayer.id
                     break
                 case 'DEFUSE':
                     if (isTheirTurn == false) break
@@ -94,17 +106,17 @@ io.on('connection', socket => {
                 case 'SKIP':
                     if (isTheirTurn && curPlayer.hand.includes('SKIP')) {
                         curPlayer.hand.splice(curPlayer.hand.indexOf('SKIP'), 1)
-                        curPlayer.take = Math.max(0, curPlayer.take - 1)
+                        curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
                         io.emit('state', `${curPlayer.socket.username} SKIPPED`)
                     }
                     break
                 case 'ATTACK':
                     if (isTheirTurn && curPlayer.hand.includes('ATTACK')) {
                         curPlayer.hand.splice(curPlayer.hand.indexOf('ATTACK'), 1)
-                        curPlayer.take = 0
-                        nextPlayer.take = 2
-                        nextPlayer.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
+                        curPlayer.pickup = 0
+                        nextPlayer.pickup = 2
                         io.emit('state', `${curPlayer.socket.username} ATTACKED`)
+                        nextPlayer.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
                     }
                     break
                 case 'BIKINI':
@@ -133,7 +145,7 @@ io.on('connection', socket => {
                     }
                     break
                 case 'QUIT':
-                    active = false
+                    state.gameActive = false
                     break
                 case 'DEBUG':
                     console.log(state)
@@ -143,26 +155,31 @@ io.on('connection', socket => {
                     break
             }
 
-            emitTurn(turn)
+            emitTurn(state.whosTurn)
             emitHands(state.players)
         }
         // not active
         else if (data.data == 'start') {
-            active = true
-            state = setup(connections)
-            turn = _.shuffle(connections.filter(p => p.socket.username))[0].id
-            io.emit('state', `GAME STARTED, ${connections.filter(p => p.id === turn)[0].socket.username} TO PLAY FIRST`)
+            const gameData = setup(state.observers)
+            state.gameActive = true
+            state.deck = gameData.deck
+            state.players = gameData.players
+            state.whosTurn = _.shuffle(state.players.filter(player => player.username))[0].id
+            io.emit('state', `GAME STARTED, ${state.players.filter(player => player.id === state.whosTurn)[0].username} TO PLAY FIRST`)
             emitHands(state.players)
-            emitTurn(turn)
+            emitTurn(state.whosTurn)
         }
+        // chatting
         else
             io.emit('state', `${socket.username}: ${data.data}`)
     })
 
     socket.on('disconnect', () => {
+        state.observers = state.observers.filter(p => p.id != socket.id)
+        state.players = state.players.filter(p => p.id != socket.id)
+
         if (socket.username) {
-            connections = connections.filter(p => p.id != socket.id)
-            io.emit('state', `${socket.username} left the game. There are now ${connections.length} players.`)
+            io.emit('state', `${socket.username} left the game. There are now ${state.players.length} players.`)
         }
     })
 })
@@ -175,15 +192,18 @@ const setup = players => {
         ZOMBIE: 4, BIKINI: 4, SCHRODINGER: 4, MOMMA: 4, BLADDER: 4
     }
 
-    const deck = _(cards)
-        .flatMap((v, k) => Array(v).fill(k))  // create all the cards based on the amounts
-        .shuffle()                            // shuffle the deck
-        .value()
+    const deck = _(cards).flatMap((amtOfCard, cardID) => Array(amtOfCard).fill(cardID)).shuffle().value()
 
-    const gamePlayers = players.map((player, i) => {
+    const gamePlayers = players.map(socket => {
         const hand = _(deck).take(4).push('DEFUSE').shuffle().value()
         deck.splice(0, 4)
-        return { id: player.id, socket: player.socket, player: i, hand, take: 1 }
+        return {
+            hand: hand,
+            username: socket.username,
+            id: socket.id,
+            pickup: 1,
+            socket: socket
+        }
     })
 
     // add correct amount of bombs
