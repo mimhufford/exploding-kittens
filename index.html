@@ -47,14 +47,14 @@
 
         $('form').submit(() => {
             if (socket.username == undefined)
-                socket.emit('username', { id: socket.id, data: $('#data').val() })
+                socket.emit('username', $('#data').val())
             else
-                socket.emit('data', { id: socket.id, data: $('#data').val() })
+                socket.emit('data', $('#data').val())
             $('#data').val('')
             return false
         })
 
-        const playCard = card => socket.emit('data', { id: socket.id, data: card })
+        const playCard = card => socket.emit('data', card)
     </script>
 </body>
 

@@ -13,13 +13,27 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 //     socket: {},                    // socket.io object
 // }
 
+// TODO
+// - send draw pile count constantly so UI can display it when needed
+// - ending is still fucked
+// - where to insert bomb after defuse
+// - which card to steal
+// - choosing a card for favours
+// - triple pair
+// - split chat and cards
+// - delay on performing card action so that nopes can be implemented
+// - nopes
+
 const state = {
     history: [],         // previous states
     observers: [],       // socket connections staging ground - moved to players upon start
     players: [],         // socket connections with a username + game details
     deck: [],            // current deck [string, string, etc...]
     gameActive: false,   // currently in a game?
-    whosTurn: undefined  // who's turn is it?
+    whosTurn: undefined, // who's turn is it?
+    nopeDelay: 2000,     // how long people get to nope things, in milliseconds
+    canNope: false,      // can people currently nope?
+    nopeCount: 0,        // how many nopes were played?
 }
 
 const emitHands = players => state.players.forEach(p => p.socket.emit('hand', p.hand))
@@ -30,27 +44,30 @@ io.on('connection', socket => {
     socket.emit('state', 'ENTER A USERNAME TO JOIN THE GAME')
 
     socket.on('username', username => {
-        // TODO check for no overlaps?
-        socket.username = username.data
-        socket.emit('usernameConfirmed', socket.username)
+        if (state.observers.filter(s => s.username == username).length > 0)
+            socket.emit('state', `${username} is taken, try another.`)
+        else {
+            socket.username = username
+            socket.emit('usernameConfirmed', socket.username)
 
-        state.observers.push(socket)
-        io.emit('state', `${socket.username} entered the game. There are now ${state.observers.length} players.`)
+            state.observers.push(socket)
+            io.emit('state', `${socket.username} entered the game. There are now ${state.observers.length} players.`)
+        }
     })
 
     socket.on('data', data => {
         if (state.gameActive) {
-            const curPlayer = state.players.filter(p => p.id == data.id)[0]
+            const curPlayer = state.players.filter(p => p.id == socket.id)[0]
             const nextPlayer = state.players[(state.players.indexOf(curPlayer) + 1) % state.players.length]
-            const otherPlayers = state.players.filter(p => p.id != data.id)
+            const otherPlayers = state.players.filter(p => p.id != socket.id)
             const isTheirTurn = state.whosTurn == curPlayer.id
 
-            switch (data.data.toUpperCase()) {
+            switch (data.toUpperCase()) {
                 case 'DONE':
                     if (isTheirTurn == false) break
                     if (curPlayer.hand.includes('BOMB')) {
                         io.emit('state', curPlayer.socket.username + " EXPLODED!")
-                        turn = nextPlayer.id
+                        state.whosTurn = nextPlayer.id
                         break
                     }
                     curPlayer.hand.push(...state.deck.slice(0, curPlayer.pickup))
@@ -75,13 +92,29 @@ io.on('connection', socket => {
                     }
                     break
                 case 'COUNT':
-                    curPlayer.socket.emit('state', state.deck.length)
+                    curPlayer.socket.emit('state', `${state.deck.length} cards left in the draw pile`)
+                    otherPlayers.forEach(p => curPlayer.socket.emit('state', `${p.username} has ${p.hand.length} cards`))
+                    break
+                case 'NOPE':
+                    if (state.canNope && curPlayer.hand.includes('NOPE')) {
+                        curPlayer.hand.splice(curPlayer.hand.indexOf('NOPE'), 1)
+                        io.emit('state', `${curPlayer.socket.username} NOPED!`)
+                        state.nopeCount++
+                    }
                     break
                 case 'FUTURE':
                     if (isTheirTurn && curPlayer.hand.includes('FUTURE')) {
+                        io.emit('state', `${curPlayer.socket.username} IS GOING TO VIEW FUTURE`)
                         curPlayer.hand.splice(curPlayer.hand.indexOf('FUTURE'), 1)
-                        curPlayer.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
-                        io.emit('state', `${curPlayer.socket.username} VIEWED THE FUTURE`)
+                        state.canNope = true
+                        setTimeout(() => {
+                            if (state.nopeCount % 2 == 0) {
+                                curPlayer.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
+                                io.emit('state', `${curPlayer.socket.username} VIEWED THE FUTURE`)
+                            }
+                            state.canNope = false
+                            state.nopeCount = 0
+                        }, state.nopeDelay)
                     }
                     break
                 case 'SHUFFLE':
@@ -151,7 +184,7 @@ io.on('connection', socket => {
                     console.log(state)
                     break
                 default:
-                    io.emit('state', `${socket.username}: ${data.data}`)
+                    io.emit('state', `${socket.username}: ${data}`)
                     break
             }
 
@@ -159,7 +192,7 @@ io.on('connection', socket => {
             emitHands(state.players)
         }
         // not active
-        else if (data.data == 'start') {
+        else if (data.toUpperCase() == 'START') {
             const gameData = setup(state.observers)
             state.gameActive = true
             state.deck = gameData.deck
@@ -171,7 +204,7 @@ io.on('connection', socket => {
         }
         // chatting
         else
-            io.emit('state', `${socket.username}: ${data.data}`)
+            io.emit('state', `${socket.username}: ${data}`)
     })
 
     socket.on('disconnect', () => {
