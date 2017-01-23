@@ -19,9 +19,7 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // - which card to steal
 // - choosing a card for favours
 // - triple pair
-// - split chat and cards
-// - delay on performing card action so that nopes can be implemented
-// - nopes
+// - nope on all cards, not just future
 
 const state = {
     history: [],         // previous states
@@ -31,6 +29,7 @@ const state = {
     gameActive: false,   // currently in a game?
     whosTurn: undefined, // who's turn is it?
     nopeDelay: 2000,     // how long people get to nope things, in milliseconds
+    lastNopeTime: 0,     // when was the last nope (so we can add to delays)
     canNope: false,      // can people currently nope?
     nopeCount: 0,        // how many nopes were played?
 }
@@ -107,6 +106,7 @@ io.on('connection', socket => {
                         removeCard('NOPE')
                         messageAll(`${curPlayer.socket.username} NOPED!`)
                         state.nopeCount++
+                        state.lastNopeTime = Date.now()
                     }
                     break
                 case 'FUTURE':
@@ -114,14 +114,24 @@ io.on('connection', socket => {
                         messageAll(`${curPlayer.socket.username} IS GOING TO VIEW FUTURE`)
                         removeCard('FUTURE')
                         state.canNope = true
-                        setTimeout(() => {
-                            if (state.nopeCount % 2 == 0) {
-                                messageCurPlayer("TOP 3 CARDS: " + state.deck.slice(0, 3))
-                                messageOthers(`${curPlayer.socket.username} VIEWED THE FUTURE`)
+
+                        const resolve = () => {
+                            const timeSinceLastNope = Date.now() - state.lastNopeTime
+                            const peopleHaveNoped = timeSinceLastNope < state.nopeDelay
+                            const howMuchLongerToWait = state.nopeDelay - (Date.now() - state.lastNopeTime)
+
+                            if (peopleHaveNoped) setTimeout(resolve, howMuchLongerToWait)
+                            else {
+                                if (state.nopeCount % 2 == 0) {
+                                    messageCurPlayer("TOP 3 CARDS: " + state.deck.slice(0, 3))
+                                    messageOthers(`${curPlayer.socket.username} VIEWED THE FUTURE`)
+                                }
+                                state.canNope = false
+                                state.nopeCount = 0
                             }
-                            state.canNope = false
-                            state.nopeCount = 0
-                        }, state.nopeDelay)
+                        }
+
+                        setTimeout(resolve, state.nopeDelay)
                     }
                     break
                 case 'SHUFFLE':
