@@ -32,10 +32,12 @@
 
         socket.on('usernameConfirmed', username => socket.username = username)
 
-        socket.on('state', data => {
+        socket.on('message', data => {
             $('#messages').append($('<li>').text(data))
             $("html, body").animate({ scrollTop: $(document).height() }, "slow")
         })
+
+        socket.on('counts', counts => { console.log(counts) })
 
         socket.on('hand', hand => {
             $('#cards').empty()

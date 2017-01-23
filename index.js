@@ -36,22 +36,24 @@ const state = {
     nopeCount: 0,        // how many nopes were played?
 }
 
-const emitHands = players => state.players.forEach(p => p.socket.emit('hand', p.hand))
-const emitTurn = whosTurn => state.players.forEach(p => p.socket.emit('turn', whosTurn))
+const emitHands = state => state.players.forEach(p => p.socket.emit('hand', p.hand))
+const emitTurn = state => state.players.forEach(p => p.socket.emit('turn', state.whosTurn))
+const emitCounts = state => state.players.forEach(p => p.socket.emit('counts', { deck: state.deck.length, players: state.players.map(p1 => ({ username: p1.username, cards: p1.hand.length })) }))
+const emitState = state => [emitHands, emitTurn, emitCounts].forEach(fn => fn(state))
 
 io.on('connection', socket => {
 
-    socket.emit('state', 'ENTER A USERNAME TO JOIN THE GAME')
+    socket.emit('message', 'ENTER A USERNAME TO JOIN THE GAME')
 
     socket.on('username', username => {
         if (state.observers.filter(s => s.username == username).length > 0)
-            socket.emit('state', `${username} is taken, try another.`)
+            socket.emit('message', `${username} is taken, try another.`)
         else {
             socket.username = username
             socket.emit('usernameConfirmed', socket.username)
 
             state.observers.push(socket)
-            io.emit('state', `${socket.username} entered the game. There are now ${state.observers.length} players.`)
+            io.emit('message', `${socket.username} entered the game. There are now ${state.observers.length} players.`)
         }
     })
 
@@ -66,18 +68,18 @@ io.on('connection', socket => {
                 case 'DONE':
                     if (isTheirTurn == false) break
                     if (curPlayer.hand.includes('BOMB')) {
-                        io.emit('state', curPlayer.socket.username + " EXPLODED!")
+                        io.emit('message', curPlayer.socket.username + " EXPLODED!")
                         state.whosTurn = nextPlayer.id
                         break
                     }
                     curPlayer.hand.push(...state.deck.slice(0, curPlayer.pickup))
                     state.deck.splice(0, curPlayer.pickup)
                     if (curPlayer.hand.includes('BOMB')) {
-                        io.emit('state', curPlayer.socket.username + " PICKED UP A BOMB!")
+                        io.emit('message', curPlayer.socket.username + " PICKED UP A BOMB!")
                         break
                     }
                     else {
-                        io.emit('state', `${curPlayer.socket.username} ENDED THEIR TURN BY PICKING UP ${curPlayer.pickup} CARDS`)
+                        io.emit('message', `${curPlayer.socket.username} ENDED THEIR TURN BY PICKING UP ${curPlayer.pickup} CARDS`)
                     }
                     curPlayer.pickup = 1
                     state.whosTurn = nextPlayer.id
@@ -88,29 +90,29 @@ io.on('connection', socket => {
                         curPlayer.hand.splice(curPlayer.hand.indexOf('BOMB'), 1)
                         curPlayer.hand.splice(curPlayer.hand.indexOf('DEFUSE'), 1)
                         state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
-                        io.emit('state', 'BOMB DEFUSED AND ADDED BACK INTO DECK AT HALFWAY POINT (bit crap)')
+                        io.emit('message', 'BOMB DEFUSED AND ADDED BACK INTO DECK AT HALFWAY POINT (bit crap)')
                     }
                     break
                 case 'COUNT':
-                    curPlayer.socket.emit('state', `${state.deck.length} cards left in the draw pile`)
-                    otherPlayers.forEach(p => curPlayer.socket.emit('state', `${p.username} has ${p.hand.length} cards`))
+                    curPlayer.socket.emit('message', `${state.deck.length} cards left in the draw pile`)
+                    otherPlayers.forEach(p => curPlayer.socket.emit('message', `${p.username} has ${p.hand.length} cards`))
                     break
                 case 'NOPE':
                     if (state.canNope && curPlayer.hand.includes('NOPE')) {
                         curPlayer.hand.splice(curPlayer.hand.indexOf('NOPE'), 1)
-                        io.emit('state', `${curPlayer.socket.username} NOPED!`)
+                        io.emit('message', `${curPlayer.socket.username} NOPED!`)
                         state.nopeCount++
                     }
                     break
                 case 'FUTURE':
                     if (isTheirTurn && curPlayer.hand.includes('FUTURE')) {
-                        io.emit('state', `${curPlayer.socket.username} IS GOING TO VIEW FUTURE`)
+                        io.emit('message', `${curPlayer.socket.username} IS GOING TO VIEW FUTURE`)
                         curPlayer.hand.splice(curPlayer.hand.indexOf('FUTURE'), 1)
                         state.canNope = true
                         setTimeout(() => {
                             if (state.nopeCount % 2 == 0) {
-                                curPlayer.socket.emit('state', "TOP 3 CARDS: " + state.deck.slice(0, 3))
-                                io.emit('state', `${curPlayer.socket.username} VIEWED THE FUTURE`)
+                                curPlayer.socket.emit('message', "TOP 3 CARDS: " + state.deck.slice(0, 3))
+                                io.emit('message', `${curPlayer.socket.username} VIEWED THE FUTURE`)
                             }
                             state.canNope = false
                             state.nopeCount = 0
@@ -121,7 +123,7 @@ io.on('connection', socket => {
                     if (isTheirTurn && curPlayer.hand.includes('SHUFFLE')) {
                         curPlayer.hand.splice(curPlayer.hand.indexOf('SHUFFLE'), 1)
                         state.deck = _.shuffle(state.deck)
-                        io.emit('state', `${curPlayer.socket.username} SHUFFLED THE DECK`)
+                        io.emit('message', `${curPlayer.socket.username} SHUFFLED THE DECK`)
                     }
                     break
                 case 'FAVOUR':
@@ -130,17 +132,17 @@ io.on('connection', socket => {
                         curPlayer.hand.push(nextPlayer.hand.pop())
 
                         const test = "WHO FROM?\n" + otherPlayers.map(p => p.player + ": " + p.socket.username).join("\n")
-                        socket.emit('state', test)
+                        socket.emit('message', test)
 
-                        nextPlayer.socket.emit('state', "YOU WERE FAVOURED FROM.")
-                        io.emit('state', `${curPlayer.socket.username} ASKED FOR A FAVOUR FROM ${nextPlayer.socket.username}`)
+                        nextPlayer.socket.emit('message', "YOU WERE FAVOURED FROM.")
+                        io.emit('message', `${curPlayer.socket.username} ASKED FOR A FAVOUR FROM ${nextPlayer.socket.username}`)
                     }
                     break
                 case 'SKIP':
                     if (isTheirTurn && curPlayer.hand.includes('SKIP')) {
                         curPlayer.hand.splice(curPlayer.hand.indexOf('SKIP'), 1)
                         curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
-                        io.emit('state', `${curPlayer.socket.username} SKIPPED`)
+                        io.emit('message', `${curPlayer.socket.username} SKIPPED`)
                     }
                     break
                 case 'ATTACK':
@@ -148,8 +150,8 @@ io.on('connection', socket => {
                         curPlayer.hand.splice(curPlayer.hand.indexOf('ATTACK'), 1)
                         curPlayer.pickup = 0
                         nextPlayer.pickup = 2
-                        io.emit('state', `${curPlayer.socket.username} ATTACKED`)
-                        nextPlayer.socket.emit('state', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
+                        io.emit('message', `${curPlayer.socket.username} ATTACKED`)
+                        nextPlayer.socket.emit('message', 'ON YOUR TURN YOU MUST PICK UP 2 CARDS')
                     }
                     break
                 case 'BIKINI':
@@ -172,8 +174,8 @@ io.on('connection', socket => {
                             // steal card from the next player (needs improving obviously)
                             curPlayer.hand.push(nextPlayer.hand.pop())
 
-                            nextPlayer.socket.emit('state', "YOU WERE STOLEN FROM.")
-                            io.emit('state', `${curPlayer.socket.username} STOLE A CARD FROM ${nextPlayer.socket.username}`)
+                            nextPlayer.socket.emit('message', "YOU WERE STOLEN FROM.")
+                            io.emit('message', `${curPlayer.socket.username} STOLE A CARD FROM ${nextPlayer.socket.username}`)
                         }
                     }
                     break
@@ -184,12 +186,11 @@ io.on('connection', socket => {
                     console.log(state)
                     break
                 default:
-                    io.emit('state', `${socket.username}: ${data}`)
+                    io.emit('message', `${socket.username}: ${data}`)
                     break
             }
 
-            emitTurn(state.whosTurn)
-            emitHands(state.players)
+            emitState(state)
         }
         // not active
         else if (data.toUpperCase() == 'START') {
@@ -198,13 +199,12 @@ io.on('connection', socket => {
             state.deck = gameData.deck
             state.players = gameData.players
             state.whosTurn = _.shuffle(state.players.filter(player => player.username))[0].id
-            io.emit('state', `GAME STARTED, ${state.players.filter(player => player.id === state.whosTurn)[0].username} TO PLAY FIRST`)
-            emitHands(state.players)
-            emitTurn(state.whosTurn)
+            io.emit('message', `GAME STARTED, ${state.players.filter(player => player.id === state.whosTurn)[0].username} TO PLAY FIRST`)
+            emitState(state)
         }
         // chatting
         else
-            io.emit('state', `${socket.username}: ${data}`)
+            io.emit('message', `${socket.username}: ${data}`)
     })
 
     socket.on('disconnect', () => {
@@ -212,7 +212,7 @@ io.on('connection', socket => {
         state.players = state.players.filter(p => p.id != socket.id)
 
         if (socket.username) {
-            io.emit('state', `${socket.username} left the game. There are now ${state.players.length} players.`)
+            io.emit('message', `${socket.username} left the game. There are now ${state.players.length} players.`)
         }
     })
 })
