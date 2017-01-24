@@ -20,6 +20,7 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // - choosing a card for favours
 // - triple pair
 // - nope on all cards, not just future
+// - pair should tell the person which card was nicked because it's easy to forget
 
 const state = {
     history: [],         // previous states
@@ -39,6 +40,28 @@ const emitTurn = state => state.players.forEach(p => p.socket.emit('turn', state
 const emitCounts = state => state.players.forEach(p => p.socket.emit('counts', { deck: state.deck.length, players: state.players.map(p1 => ({ username: p1.username, cards: p1.hand.length })) }))
 const emitState = state => [emitHands, emitTurn, emitCounts].forEach(fn => fn(state))
 const messageAll = message => io.emit('message', message)
+
+const playCardWithDelay = action => {
+    state.canNope = true
+
+    const resolve = action => () => {
+        const howLongSinceLastNope = Date.now() - state.lastNopeTime
+        const peopleHaveNoped = howLongSinceLastNope < state.nopeDelay
+        const howMuchLongerToWait = state.nopeDelay - howLongSinceLastNope
+
+        if (peopleHaveNoped) setTimeout(resolve(action), howMuchLongerToWait)
+        else {
+            if (state.nopeCount % 2 == 0)
+                action()
+            state.canNope = false
+            state.nopeCount = 0
+        }
+
+        emitState(state)
+    }
+
+    setTimeout(resolve(action), state.nopeDelay)
+}
 
 io.on('connection', socket => {
 
@@ -91,10 +114,13 @@ io.on('connection', socket => {
                 case 'DEFUSE':
                     if (notTheirTurn) break
                     if (hasCard('BOMB') && hasCard('DEFUSE')) {
-                        removeCard('BOMB')
                         removeCard('DEFUSE')
-                        state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
-                        messageAll('BOMB DEFUSED AND ADDED BACK INTO DECK AT HALFWAY POINT (bit crap)')
+                        messageAll(`${curPlayer.socket.username} IS GOING TO DEFUSE THE BOMB`)
+                        playCardWithDelay(() => {
+                            removeCard('BOMB')
+                            state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
+                            messageAll(`${curPlayer.socket.username} DEFUSED THE BOMB AND ADDED BACK AT HALFWAY POINT (bit crap)`)
+                        })
                     }
                     break
                 case 'COUNT':
@@ -111,59 +137,53 @@ io.on('connection', socket => {
                     break
                 case 'FUTURE':
                     if (isTheirTurn && hasCard('FUTURE')) {
-                        messageAll(`${curPlayer.socket.username} IS GOING TO VIEW FUTURE`)
                         removeCard('FUTURE')
-                        state.canNope = true
-
-                        const resolve = () => {
-                            const timeSinceLastNope = Date.now() - state.lastNopeTime
-                            const peopleHaveNoped = timeSinceLastNope < state.nopeDelay
-                            const howMuchLongerToWait = state.nopeDelay - (Date.now() - state.lastNopeTime)
-
-                            if (peopleHaveNoped) setTimeout(resolve, howMuchLongerToWait)
-                            else {
-                                if (state.nopeCount % 2 == 0) {
-                                    messageCurPlayer("TOP 3 CARDS: " + state.deck.slice(0, 3))
-                                    messageOthers(`${curPlayer.socket.username} VIEWED THE FUTURE`)
-                                }
-                                state.canNope = false
-                                state.nopeCount = 0
-                            }
-                        }
-
-                        setTimeout(resolve, state.nopeDelay)
+                        messageAll(`${curPlayer.socket.username} IS GOING TO VIEW FUTURE`)
+                        playCardWithDelay(() => {
+                            messageCurPlayer("TOP 3 CARDS: " + state.deck.slice(0, 3))
+                            messageOthers(`${curPlayer.socket.username} VIEWED THE FUTURE`)
+                        })
                     }
                     break
                 case 'SHUFFLE':
                     if (isTheirTurn && hasCard('SHUFFLE')) {
                         removeCard('SHUFFLE')
-                        state.deck = _.shuffle(state.deck)
-                        messageAll(`${curPlayer.socket.username} SHUFFLED THE DECK`)
+                        messageAll(`${curPlayer.socket.username} IS GOING TO SHUFFLE THE DECK`)
+                        playCardWithDelay(() => {
+                            state.deck = _.shuffle(state.deck)
+                            messageAll(`${curPlayer.socket.username} SHUFFLED THE DECK`)
+                        })
                     }
                     break
                 case 'FAVOUR':
                     if (isTheirTurn && hasCard('FAVOUR')) {
                         removeCard('FAVOUR')
-                        curPlayer.hand.push(nextPlayer.hand.pop())
-
-                        messageCurPlayer("WHO FROM?\n" + otherPlayers.map(p => p.player + ": " + p.socket.username).join("\n"))
-
-                        messageAll(`${curPlayer.socket.username} ASKED FOR A FAVOUR FROM ${nextPlayer.socket.username}`)
+                        messageAll(`${curPlayer.socket.username} IS ASKING ${nextPlayer.socket.username} FOR A FAVOUR`)
+                        playCardWithDelay(() => {
+                            curPlayer.hand.push(nextPlayer.hand.pop())
+                            messageAll(`${curPlayer.socket.username} TOOK A FAVOUR FROM ${nextPlayer.socket.username}`)
+                        })
                     }
                     break
                 case 'SKIP':
                     if (isTheirTurn && hasCard('SKIP')) {
                         removeCard('SKIP')
-                        curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
-                        messageAll(`${curPlayer.socket.username} SKIPPED`)
+                        messageAll(`${curPlayer.socket.username} WANTS TO SKIP PICKING UP`)
+                        playCardWithDelay(() => {
+                            curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
+                            messageAll(`${curPlayer.socket.username} WILL SKIP PICKING UP`)
+                        })
                     }
                     break
                 case 'ATTACK':
                     if (isTheirTurn && hasCard('ATTACK')) {
                         removeCard('ATTACK')
-                        curPlayer.pickup = 0
-                        nextPlayer.pickup = 2
-                        messageAll(`${curPlayer.socket.username} ATTACKED! ${nextPlayer.socket.username} MUST PICK UP 2 CARDS AT THE END OF THEIR TURN!`)
+                        messageAll(`${curPlayer.socket.username} IS GOING TO ATTACK ${nextPlayer.socket.username}`)
+                        playCardWithDelay(() => {
+                            curPlayer.pickup = 0
+                            nextPlayer.pickup = 2
+                            messageAll(`${curPlayer.socket.username} ATTACKED! ${nextPlayer.socket.username} MUST PICK UP 2 CARDS AT THE END OF THEIR TURN!`)
+                        })
                     }
                     break
                 case 'BIKINI':
@@ -182,11 +202,11 @@ io.on('connection', socket => {
                             // remove the 2 cards
                             curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
                             curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
-
-                            // steal card from the next player (needs improving obviously)
-                            curPlayer.hand.push(nextPlayer.hand.pop())
-
-                            messageAll(`${curPlayer.socket.username} STOLE A CARD FROM ${nextPlayer.socket.username}`)
+                            messageAll(`${curPlayer.socket.username} IS GOING TO STEAL A CARD FROM ${nextPlayer.socket.username}`)
+                            playCardWithDelay(() => {
+                                curPlayer.hand.push(nextPlayer.hand.pop())
+                                messageAll(`${curPlayer.socket.username} STOLE A CARD FROM ${nextPlayer.socket.username}`)
+                            })
                         }
                     }
                     break
