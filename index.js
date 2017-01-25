@@ -21,6 +21,7 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // - triple pair
 // - nope on all cards, not just future
 // - pair should tell the person which card was nicked because it's easy to forget
+// - split messages and cards
 
 const state = {
     history: [],         // previous states
@@ -86,22 +87,22 @@ io.on('connection', socket => {
             const otherPlayers = state.players.filter(p => p.id != socket.id)
             const isTheirTurn = state.whosTurn == curPlayer.id
             const notTheirTurn = !isTheirTurn
-            const hasCard = card => curPlayer.hand.includes(card)
-            const removeCard = card => curPlayer.hand.splice(curPlayer.hand.indexOf(card), 1)
+            const hasCard = card => curPlayer.hand[data.index] === data.data
+            const removeCard = card => curPlayer.hand.splice(data.index, 1)
             const messageOthers = message => otherPlayers.forEach(p => p.socket.emit('message', message))
             const messageCurPlayer = message => socket.emit('message', message)
 
-            switch (data.toUpperCase()) {
+            switch (data.data.toUpperCase()) {
                 case 'DONE':
                     if (notTheirTurn) break
-                    if (hasCard('BOMB')) {
+                    if (curPlayer.hand.includes("BOMB")) {
                         messageAll(curPlayer.socket.username + " EXPLODED!")
                         state.whosTurn = nextPlayer.id
                         break
                     }
                     curPlayer.hand.push(...state.deck.slice(0, curPlayer.pickup))
                     state.deck.splice(0, curPlayer.pickup)
-                    if (hasCard('BOMB')) {
+                    if (curPlayer.hand.includes("BOMB")) {
                         messageAll(curPlayer.socket.username + " PICKED UP A BOMB!")
                         break
                     }
@@ -113,7 +114,7 @@ io.on('connection', socket => {
                     break
                 case 'DEFUSE':
                     if (notTheirTurn) break
-                    if (hasCard('BOMB') && hasCard('DEFUSE')) {
+                    if (curPlayer.hand.includes("BOMB") && hasCard('DEFUSE')) {
                         removeCard('DEFUSE')
                         messageAll(`${curPlayer.socket.username} IS GOING TO DEFUSE THE BOMB`)
                         playCardWithDelay(() => {
@@ -217,14 +218,14 @@ io.on('connection', socket => {
                     console.log(state)
                     break
                 default:
-                    messageAll(`${socket.username}: ${data}`)
+                    messageAll(`${socket.username}: ${data.data}`)
                     break
             }
 
             emitState(state)
         }
         // not active
-        else if (data.toUpperCase() == 'START') {
+        else if (data.data.toUpperCase() == 'START') {
             const gameData = setup(state.observers)
             state.gameActive = true
             state.deck = gameData.deck
@@ -235,7 +236,7 @@ io.on('connection', socket => {
         }
         // chatting
         else
-            messageAll(`${socket.username}: ${data}`)
+            messageAll(`${socket.username}: ${data.data}`)
     })
 
     socket.on('disconnect', () => {

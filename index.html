@@ -41,8 +41,8 @@
 
         socket.on('hand', hand => {
             $('#cards').empty()
-            hand.forEach(card => $('#cards').append("<button class='card' onclick=playCard('" + card + "')>" + card + "</button>"))
-            $('#cards').append("<br/><button class='card' onclick=playCard('DONE')>END YOUR TURN</button>")
+            hand.forEach((card, index) => $('#cards').append("<button class='card' onclick=playCard(" + index + ",'" + card + "')>" + card + "</button>"))
+            $('#cards').append("<br/><button class='card' onclick=playCard(-1,'DONE')>END YOUR TURN</button>")
         })
 
         socket.on('turn', id => $('form').css('background-color', id == socket.id ? 'green' : 'black'))
@@ -51,12 +51,12 @@
             if (socket.username == undefined)
                 socket.emit('username', $('#data').val())
             else
-                socket.emit('data', $('#data').val())
+                socket.emit('data', { index: -1, data: $('#data').val() })
             $('#data').val('')
             return false
         })
 
-        const playCard = card => socket.emit('data', card)
+        const playCard = (index, card) => socket.emit('data', { index, data: card })
     </script>
 </body>
 
