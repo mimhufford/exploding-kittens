@@ -16,6 +16,9 @@
       #messages li:nth-child(odd), #log li:nth-child(odd) { background: #eee; }
       #messageForm input { margin: 0;  padding: 10px;  width: calc(100% - 26px); font-size: 100%; }
       #messageForm button { display: none; }
+      #cards { overflow: hidden; }
+      .card { position: relative; top: 30px; width: 125px; height: 175px; transition: top 0.2s; }
+      .card:hover { top: 0; }
     </style>
 </head>
 
@@ -54,7 +57,7 @@
         socket.on('hand', hand => {
             $('#cards').empty()
             hand.forEach((card, index) => $('#cards').append("<button class='card' onclick=playCard(" + index + ",'" + card + "')>" + card + "</button>"))
-            $('#cards').append("<br/><button class='card' onclick=playCard(-1,'DONE')>END YOUR TURN</button>")
+            $('#cards').append("<button onclick=playCard(-1,'DONE')>END YOUR TURN</button>")
         })
 
         socket.on('turn', id => $('#cards').css('background-color', id == socket.id ? '#9d9' : '#ddd'))
