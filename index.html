@@ -16,9 +16,9 @@
       #messages li:nth-child(odd), #log li:nth-child(odd) { background: #eee; }
       #messageForm input { margin: 0;  padding: 10px;  width: calc(100% - 26px); font-size: 100%; }
       #messageForm button { display: none; }
-      #cards { overflow: hidden; }
+      #cards { overflow: hidden; text-align: center; }
       .card { position: relative; top: 30px; width: 125px; height: 175px; transition: top 0.2s; }
-      .card:hover { top: 0; }
+      .card:hover { top: 0 !important; }
     </style>
 </head>
 
@@ -56,7 +56,18 @@
 
         socket.on('hand', hand => {
             $('#cards').empty()
-            hand.forEach((card, index) => $('#cards').append("<button class='card' onclick=playCard(" + index + ",'" + card + "')>" + card + "</button>"))
+            const mid = (hand.length / 2)
+            const maxRotation = 5
+            const cardHeight = 30
+            hand.forEach((card, i) => {
+                const offset = i - mid + 0.5
+                const multiplier = offset / (mid - 0.5)
+                const element = "<button class='card' " +
+                    "style='transform: rotate(" + maxRotation * multiplier + "deg); top: " + (15 + Math.abs(offset) * 10) + "px'" +
+                    "onclick=playCard(" + i + ",'" + card + "')>" + card + "</button>"
+                $('#cards').append(element)
+            })
+
             $('#cards').append("<button onclick=playCard(-1,'DONE')>END YOUR TURN</button>")
         })
 
