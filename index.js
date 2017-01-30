@@ -1,7 +1,7 @@
 const _ = require('lodash')
 const app = require('express')()
-const http = require('http').Server(app);
-const io = require('socket.io')(http);
+const http = require('http').Server(app)
+const io = require('socket.io')(http)
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 
@@ -24,23 +24,24 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // - split messages and cards
 
 const state = {
-    history: [],         // previous states
-    observers: [],       // socket connections staging ground - moved to players upon start
-    players: [],         // socket connections with a username + game details
-    deck: [],            // current deck [string, string, etc...]
-    gameActive: false,   // currently in a game?
-    whosTurn: undefined, // who's turn is it?
-    nopeDelay: 2000,     // how long people get to nope things, in milliseconds
-    lastNopeTime: 0,     // when was the last nope (so we can add to delays)
-    canNope: false,      // can people currently nope?
-    nopeCount: 0,        // how many nopes were played?
+    history: [],          // previous states
+    observers: [],        // socket connections staging ground - moved to players upon start
+    players: [],          // socket connections with a username + game details
+    deck: [],             // current deck [string, string, etc...]
+    gameActive: false,    // currently in a game?
+    whosTurn: undefined,  // who's turn is it?
+    nopeDelay: 2000,      // how long people get to nope things, in milliseconds
+    lastNopeTime: 0,      // when was the last nope (so we can add to delays)
+    canNope: false,       // can people currently nope?
+    nopeCount: 0,         // how many nopes were played?
+    waitingForUser: null, // are we currently waiting for a response from a user? (favour, pair, reinserting bomb)
 }
 
 const emitHands = state => state.players.forEach(p => p.socket.emit('hand', p.hand))
 const emitTurn = state => state.players.forEach(p => p.socket.emit('turn', state.whosTurn))
 const emitCounts = state => state.players.forEach(p => p.socket.emit('counts', { deck: state.deck.length, players: state.players.map(p1 => ({ username: p1.username, cards: p1.hand.length })) }))
 const emitState = state => [emitHands, emitTurn, emitCounts].forEach(fn => fn(state))
-const messageAll = message => io.emit('message', message)
+const messageAll = message => io.emit('log', message)
 
 const playCardWithDelay = action => {
     state.canNope = true
@@ -66,11 +67,11 @@ const playCardWithDelay = action => {
 
 io.on('connection', socket => {
 
-    socket.emit('message', 'ENTER A USERNAME TO JOIN THE GAME')
+    socket.emit('log', 'ENTER A USERNAME TO JOIN THE GAME')
 
     socket.on('username', username => {
         if (state.observers.filter(s => s.username == username).length > 0)
-            socket.emit('message', `${username} is taken, try another.`)
+            socket.emit('log', `${username} is taken, try another.`)
         else {
             socket.username = username
             socket.emit('usernameConfirmed', socket.username)
@@ -83,8 +84,8 @@ io.on('connection', socket => {
     socket.on('chat', message => {
         switch (message.toUpperCase()) {
             case 'COUNT':
-                socket.emit('message', `${state.deck.length} cards left in the draw pile`)
-                state.players.filter(p => p.id != socket.id).forEach(p => socket.emit('message', `${p.username} has ${p.hand.length} cards`))
+                socket.emit('log', `${state.deck.length} cards left in the draw pile`)
+                state.players.filter(p => p.id != socket.id).forEach(p => socket.emit('log', `${p.username} has ${p.hand.length} cards`))
                 break
             case 'QUIT':
                 state.gameActive = false
@@ -102,13 +103,25 @@ io.on('connection', socket => {
                 emitState(state)
                 break
             default:
-                io.emit('message1', `${socket.username}: ${message}`)
+                io.emit('message', `${socket.username}: ${message}`)
                 break
         }
     })
 
+    socket.on('player-chosen', username => {
+        if (socket != state.waitingForUser) return
+    })
+
+    const handleFavour = (theif, target) => {
+        messageAll(`${theif.username} IS ASKING ${target.username} FOR A FAVOUR`)
+        playCardWithDelay(() => {
+            theif.hand.push(target.hand.pop())
+            messageAll(`${theif.username} TOOK A FAVOUR FROM ${target.username}`)
+        })
+    }
+
     socket.on('data', data => {
-        if (state.gameActive == false) return;
+        if (state.gameActive == false) return
 
         const curPlayer = state.players.filter(p => p.id == socket.id)[0]
         const nextPlayer = state.players[(state.players.indexOf(curPlayer) + 1) % state.players.length]
@@ -117,8 +130,8 @@ io.on('connection', socket => {
         const notTheirTurn = !isTheirTurn
         const hasCard = card => curPlayer.hand[data.index] === data.data
         const removeCard = card => curPlayer.hand.splice(data.index, 1)
-        const messageOthers = message => otherPlayers.forEach(p => p.socket.emit('message', message))
-        const messageCurPlayer = message => socket.emit('message', message)
+        const messageOthers = message => otherPlayers.forEach(p => p.socket.emit('log', message))
+        const messageCurPlayer = message => socket.emit('log', message)
 
         switch (data.data.toUpperCase()) {
             case 'DONE':
@@ -183,11 +196,13 @@ io.on('connection', socket => {
             case 'FAVOUR':
                 if (isTheirTurn && hasCard('FAVOUR')) {
                     removeCard('FAVOUR')
-                    messageAll(`${curPlayer.username} IS ASKING ${nextPlayer.username} FOR A FAVOUR`)
-                    playCardWithDelay(() => {
-                        curPlayer.hand.push(nextPlayer.hand.pop())
-                        messageAll(`${curPlayer.username} TOOK A FAVOUR FROM ${nextPlayer.username}`)
-                    })
+
+                    state.waitingForUser = socket
+                    socket.emit('choose-player', otherPlayers.map(p => p.username))
+                    // wait for response
+                    state.waitingForUser = null
+
+                    handleFavour(curPlayer, nextPlayer)
                 }
                 break
             case 'SKIP':

@@ -8,7 +8,7 @@
       #container { display: flex;  align-items: stretch;  flex-direction: column;  height: calc(100% - 20px);  width: calc(100% - 20px);  position: absolute; }
       #title, #messages, #log, #cards, #messageForm { margin: 10px;  padding: 10px;  background: #ddd; }
       #title { background: transparent; }
-      #top { display: flex;  flex: 1 1 auto; }
+      #top { display: flex;  flex: 1 1 0; }
       #messages, #log { overflow: auto;  overflow-x: hidden; }
       #messages { flex: 1 1 30%; }
       #log      { flex: 1 1 70%; }
@@ -39,20 +39,24 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.7.2/socket.io.min.js"></script>
     <script>
         const socket = io()
+        const messages = $('#messages')
+        const log = $('#log')
 
         socket.on('usernameConfirmed', username => socket.username = username)
 
-        socket.on('message', data => {
-            $('#log').append($('<li>').text(data))
-            $('#log').animate({ scrollTop: $(document).height() }, "slow")
+        socket.on('log', data => {
+            log.append($('<li>').text(data))
+            log.animate({ scrollTop: log[0].scrollHeight - log.height() }, "fast")
         })
 
-        socket.on('message1', data => {
-            $('#messages').append($('<li>').text(data))
-            $('#messages').animate({ scrollTop: $(document).height() }, "slow")
+        socket.on('message', data => {
+            messages.append($('<li>').text(data))
+            messages.animate({ scrollTop: messages[0].scrollHeight - messages.height() }, "fast")
         })
 
         socket.on('counts', counts => { console.log(counts) })
+
+        socket.on('choose-player', players => { console.log(players) })
 
         socket.on('hand', hand => {
             $('#cards').empty()
