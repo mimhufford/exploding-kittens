@@ -42,12 +42,14 @@
         const messages = $('#messages')
         const log = $('#log')
 
-        socket.on('usernameConfirmed', username => socket.username = username)
-
-        socket.on('log', data => {
-            log.append($('<li>').text(data))
+        const addToLog = (data => {
+            log.append($('<li>').append(data))
             log.animate({ scrollTop: log[0].scrollHeight - log.height() }, "fast")
         })
+
+        socket.on('usernameConfirmed', username => socket.username = username)
+
+        socket.on('log', addToLog)
 
         socket.on('message', data => {
             messages.append($('<li>').text(data))
@@ -56,7 +58,9 @@
 
         socket.on('counts', counts => { console.log(counts) })
 
-        socket.on('choose-player', players => { console.log(players) })
+        socket.on('choose-player', players => {
+            addToLog("WHO YOU ASKING A FAVOUR FROM?" + players.map(player => "<button>"+player+"</button>").join(""))
+        })
 
         socket.on('hand', hand => {
             $('#cards').empty()
