@@ -19,9 +19,7 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // - which card to steal
 // - choosing a card for favours
 // - triple pair
-// - nope on all cards, not just future
 // - pair should tell the person which card was nicked because it's easy to forget
-// - split messages and cards
 
 const state = {
     history: [],          // previous states
@@ -245,11 +243,21 @@ io.on('connection', socket => {
                         // remove the 2 cards
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
-                        messageAll(`${curPlayer.username} IS GOING TO STEAL A CARD FROM ${nextPlayer.username}`)
-                        playCardWithDelay(() => {
-                            curPlayer.hand.push(nextPlayer.hand.pop())
-                            messageAll(`${curPlayer.username} STOLE A CARD FROM ${nextPlayer.username}`)
-                        })
+                        //TODO: pause game
+                        socket.emit(
+                            'choose-player',
+                            otherPlayers.map(p => p.username),
+                            response => {
+                                // TODO: resume game
+                                // ROBUSTNESS: assumes the response from the client is valid
+                                const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
+                                messageAll(`${curPlayer.username} IS GOING TO STEAL A CARD FROM ${chosenPlayer.username}`)
+                                playCardWithDelay(() => {
+                                    curPlayer.hand.push(chosenPlayer.hand.pop())
+                                    messageAll(`${curPlayer.username} STOLE A CARD FROM ${chosenPlayer.username}`)
+                                })
+                            }
+                        )
                     }
                 }
                 break
