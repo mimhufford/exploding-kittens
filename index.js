@@ -34,7 +34,6 @@ const state = {
     lastNopeTime: 0,      // when was the last nope (so we can add to delays)
     canNope: false,       // can people currently nope?
     nopeCount: 0,         // how many nopes were played?
-    waitingForUser: null, // are we currently waiting for a response from a user? (favour, pair, reinserting bomb)
 }
 
 const emitHands = state => state.players.forEach(p => p.socket.emit('hand', p.hand))
@@ -108,13 +107,10 @@ io.on('connection', socket => {
         }
     })
 
-    socket.on('player-chosen', username => {
-        if (socket != state.waitingForUser) return
-    })
-
     const handleFavour = (theif, target) => {
         messageAll(`${theif.username} IS ASKING ${target.username} FOR A FAVOUR`)
         playCardWithDelay(() => {
+            //TODO: which card?
             theif.hand.push(target.hand.pop())
             messageAll(`${theif.username} TOOK A FAVOUR FROM ${target.username}`)
         })
@@ -198,11 +194,18 @@ io.on('connection', socket => {
                     removeCard('FAVOUR')
 
                     state.waitingForUser = socket
-                    socket.emit('choose-player', otherPlayers.map(p => p.username))
-                    // wait for response
-                    state.waitingForUser = null
+                    // TODO: pause game
+                    socket.emit(
+                        'choose-player',
+                        otherPlayers.map(p => p.username),
+                        response => {
+                            // TODO: resume game
+                            // ROBUSTNESS: assumes the response from the client is valid
+                            const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
+                            handleFavour(curPlayer, chosenPlayer)
+                        }
+                    )
 
-                    handleFavour(curPlayer, nextPlayer)
                 }
                 break
             case 'SKIP':

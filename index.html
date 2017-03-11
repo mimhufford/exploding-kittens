@@ -58,8 +58,10 @@
 
         socket.on('counts', counts => { console.log(counts) })
 
-        socket.on('choose-player', players => {
-            addToLog("WHO YOU ASKING A FAVOUR FROM?" + players.map(player => "<button>"+player+"</button>").join(""))
+        socket.on('choose-player', (players, response) => {
+            // TODO: validate input
+            const player = prompt("FAVOUR FROM WHO?" + players)
+            response(player)
         })
 
         socket.on('hand', hand => {
