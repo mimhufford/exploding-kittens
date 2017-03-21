@@ -60,7 +60,7 @@
 
         socket.on('choose-player', (players, response) => {
             // TODO: validate input
-            const player = prompt("FAVOUR FROM WHO?" + players)
+            const player = prompt("Chose a player:\n" + players)
             response(player)
         })
 
