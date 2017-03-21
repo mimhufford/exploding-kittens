@@ -16,8 +16,8 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // TODO
 // - ending is still fucked
 // - where to insert bomb after defuse
+// - don't pick up after defusing bomb
 // - which card to steal
-// - choosing a card for favours
 // - triple pair
 // - pair should tell the person which card was nicked because it's easy to forget
 
@@ -145,7 +145,7 @@ io.on('connection', socket => {
                     removeCard('DEFUSE')
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
                     playCardWithDelay(() => {
-                        removeCard('BOMB')
+                        removeCard(curPlayer.hand.indexOf('BOMB'))
                         state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
                         messageAll(`${curPlayer.username} DEFUSED THE BOMB AND ADDED BACK AT HALFWAY POINT (bit crap)`)
                     })
