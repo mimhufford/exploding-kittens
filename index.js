@@ -105,15 +105,6 @@ io.on('connection', socket => {
         }
     })
 
-    const handleFavour = (theif, target) => {
-        messageAll(`${theif.username} IS ASKING ${target.username} FOR A FAVOUR`)
-        playCardWithDelay(() => {
-            //TODO: which card?
-            theif.hand.push(target.hand.pop())
-            messageAll(`${theif.username} TOOK A FAVOUR FROM ${target.username}`)
-        })
-    }
-
     socket.on('data', data => {
         if (state.gameActive == false) return
 
@@ -193,17 +184,21 @@ io.on('connection', socket => {
 
                     state.waitingForUser = socket
                     // TODO: pause game
-                    socket.emit(
-                        'choose-player',
-                        otherPlayers.map(p => p.username),
-                        response => {
-                            // TODO: resume game
-                            // ROBUSTNESS: assumes the response from the client is valid
-                            const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
-                            handleFavour(curPlayer, chosenPlayer)
-                        }
-                    )
-
+                    socket.emit('choose-player', otherPlayers.map(p => p.username), response => {
+                        // TODO: resume game
+                        // ROBUSTNESS: assumes the response from the client is valid
+                        const target = otherPlayers.filter(p => p.username === response)[0]
+                        messageAll(`${curPlayer.username} IS ASKING ${target.username} FOR A FAVOUR`)
+                        playCardWithDelay(() => {
+                            target.socket.emit('choose-card', target.hand, response => {
+                                // TODO: search for card and take it out of their hand
+                                removeCard(response)
+                                curPlayer.hand.push(response)
+                                messageAll(`${curPlayer.username} TOOK A FAVOUR FROM ${target.username}`)
+                                emitState(state)
+                            })
+                        })
+                    })
                 }
                 break
             case 'SKIP':
