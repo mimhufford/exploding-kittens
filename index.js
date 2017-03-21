@@ -113,8 +113,9 @@ io.on('connection', socket => {
         const otherPlayers = state.players.filter(p => p.id != socket.id)
         const isTheirTurn = state.whosTurn == curPlayer.id
         const notTheirTurn = !isTheirTurn
-        const hasCard = card => curPlayer.hand[data.index] === data.data
-        const removeCard = card => curPlayer.hand.splice(data.index, 1)
+        const hasCard = (card, i) => curPlayer.hand[i] === card
+        const removeCard = i => curPlayer.hand.splice(i, 1)
+        const removeCardFrom = (player, i) => player.hand.splice(i, 1)
         const messageOthers = message => otherPlayers.forEach(p => p.socket.emit('log', message))
         const messageCurPlayer = message => socket.emit('log', message)
 
@@ -140,7 +141,7 @@ io.on('connection', socket => {
                 break
             case 'DEFUSE':
                 if (notTheirTurn) break
-                if (curPlayer.hand.includes("BOMB") && hasCard('DEFUSE')) {
+                if (curPlayer.hand.includes("BOMB") && hasCard(data.data, data.index)) {
                     removeCard('DEFUSE')
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
                     playCardWithDelay(() => {
@@ -151,16 +152,16 @@ io.on('connection', socket => {
                 }
                 break
             case 'NOPE':
-                if (state.canNope && hasCard('NOPE')) {
-                    removeCard('NOPE')
+                if (state.canNope && hasCard(data.data, data.index)) {
+                    removeCard(data.index)
                     messageAll(`${curPlayer.username} NOPED!`)
                     state.nopeCount++
                     state.lastNopeTime = Date.now()
                 }
                 break
             case 'FUTURE':
-                if (isTheirTurn && hasCard('FUTURE')) {
-                    removeCard('FUTURE')
+                if (isTheirTurn && hasCard(data.data, data.index)) {
+                    removeCard(data.index)
                     messageAll(`${curPlayer.username} IS GOING TO VIEW FUTURE`)
                     playCardWithDelay(() => {
                         messageCurPlayer("TOP 3 CARDS: " + state.deck.slice(0, 3))
@@ -169,8 +170,8 @@ io.on('connection', socket => {
                 }
                 break
             case 'SHUFFLE':
-                if (isTheirTurn && hasCard('SHUFFLE')) {
-                    removeCard('SHUFFLE')
+                if (isTheirTurn && hasCard(data.data, data.index)) {
+                    removeCard(data.index)
                     messageAll(`${curPlayer.username} IS GOING TO SHUFFLE THE DECK`)
                     playCardWithDelay(() => {
                         state.deck = _.shuffle(state.deck)
@@ -179,8 +180,8 @@ io.on('connection', socket => {
                 }
                 break
             case 'FAVOUR':
-                if (isTheirTurn && hasCard('FAVOUR')) {
-                    removeCard('FAVOUR')
+                if (isTheirTurn && hasCard(data.data, data.index)) {
+                    removeCard(data.index)
 
                     state.waitingForUser = socket
                     // TODO: pause game
@@ -191,8 +192,9 @@ io.on('connection', socket => {
                         messageAll(`${curPlayer.username} IS ASKING ${target.username} FOR A FAVOUR`)
                         playCardWithDelay(() => {
                             target.socket.emit('choose-card', target.hand, response => {
-                                // TODO: search for card and take it out of their hand
-                                removeCard(response)
+                                // ROBUSTNESS: assumes the response from the client is valid
+                                const index = target.hand.indexOf(response)
+                                removeCardFrom(target, index)
                                 curPlayer.hand.push(response)
                                 messageAll(`${curPlayer.username} TOOK A FAVOUR FROM ${target.username}`)
                                 emitState(state)
@@ -202,8 +204,8 @@ io.on('connection', socket => {
                 }
                 break
             case 'SKIP':
-                if (isTheirTurn && hasCard('SKIP')) {
-                    removeCard('SKIP')
+                if (isTheirTurn && hasCard(data.data, data.index)) {
+                    removeCard(data.index)
                     messageAll(`${curPlayer.username} WANTS TO SKIP PICKING UP`)
                     playCardWithDelay(() => {
                         curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
@@ -212,8 +214,8 @@ io.on('connection', socket => {
                 }
                 break
             case 'ATTACK':
-                if (isTheirTurn && hasCard('ATTACK')) {
-                    removeCard('ATTACK')
+                if (isTheirTurn && hasCard(data.data, data.index)) {
+                    removeCard(data.index)
                     messageAll(`${curPlayer.username} IS GOING TO ATTACK ${nextPlayer.username}`)
                     playCardWithDelay(() => {
                         curPlayer.pickup = 0
