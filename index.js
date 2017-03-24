@@ -250,8 +250,14 @@ io.on('connection', socket => {
                                 const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
                                 messageAll(`${curPlayer.username} IS GOING TO STEAL A CARD FROM ${chosenPlayer.username}`)
                                 playCardWithDelay(() => {
-                                    curPlayer.hand.push(chosenPlayer.hand.pop())
-                                    messageAll(`${curPlayer.username} STOLE A CARD FROM ${chosenPlayer.username}`)
+                                    const amount = chosenPlayer.hand.length
+                                    socket.emit("choice", { message: `Which card? (from 1 - ${amount})`, choices: "ARRAY OF INDICES" }, cardIndex => {
+                                        const card = chosenPlayer.hand[cardIndex - 1]
+                                        removeCardFrom(chosenPlayer, cardIndex - 1)
+                                        curPlayer.hand.push(card)
+                                        messageAll(`${curPlayer.username} STOLE A CARD FROM ${chosenPlayer.username}`)
+                                        emitState(state)
+                                    })
                                 })
                             }
                         )
