@@ -58,16 +58,10 @@
 
         socket.on('counts', counts => { console.log(counts) })
 
-        socket.on('choose-card', (cards, response) => {
+        socket.on('choice', (data, response) => {
             // TODO: validate input
-            const card = prompt("Chose a card:\n" + cards)
-            response(card)
-        })
-
-        socket.on('choose-player', (players, response) => {
-            // TODO: validate input
-            const player = prompt("Chose a player:\n" + players)
-            response(player)
+            const choice = prompt(data.message + " " + data.choices)
+            response(choice)
         })
 
         socket.on('hand', hand => {

@@ -185,13 +185,13 @@ io.on('connection', socket => {
 
                     state.waitingForUser = socket
                     // TODO: pause game
-                    socket.emit('choose-player', otherPlayers.map(p => p.username), response => {
+                    socket.emit('choice', { message: "Which player?", choices: otherPlayers.map(p => p.username) }, response => {
                         // TODO: resume game
                         // ROBUSTNESS: assumes the response from the client is valid
                         const target = otherPlayers.filter(p => p.username === response)[0]
                         messageAll(`${curPlayer.username} IS ASKING ${target.username} FOR A FAVOUR`)
                         playCardWithDelay(() => {
-                            target.socket.emit('choose-card', target.hand, response => {
+                            target.socket.emit('choice', { message: "Which card?", choices: target.hand }, response => {
                                 // ROBUSTNESS: assumes the response from the client is valid
                                 const index = target.hand.indexOf(response)
                                 removeCardFrom(target, index)
