@@ -242,8 +242,8 @@ io.on('connection', socket => {
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
                         //TODO: pause game
                         socket.emit(
-                            'choose-player',
-                            otherPlayers.map(p => p.username),
+                            'choice',
+                            { message: "Which player?", choices: otherPlayers.map(p => p.username) },
                             response => {
                                 // TODO: resume game
                                 // ROBUSTNESS: assumes the response from the client is valid
