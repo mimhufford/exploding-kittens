@@ -17,9 +17,7 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // - ending is still fucked
 // - where to insert bomb after defuse
 // - don't pick up after defusing bomb
-// - which card to steal
 // - triple pair
-// - pair should tell the person which card was nicked because it's easy to forget
 
 const state = {
     history: [],          // previous states
@@ -257,6 +255,8 @@ io.on('connection', socket => {
                                         curPlayer.hand.push(card)
                                         messageAll(`${curPlayer.username} STOLE A CARD FROM ${chosenPlayer.username}`)
                                         emitState(state)
+                                        messageCurPlayer(`You stole a ${card}`)
+                                        chosenPlayer.socket.emit("message", `They stole your ${card}`)
                                     })
                                 })
                             }
