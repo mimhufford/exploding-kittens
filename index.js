@@ -16,7 +16,6 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // TODO
 // - ending is still fucked
 // - where to insert bomb after defuse
-// - don't pick up after defusing bomb
 // - triple pair
 
 const state = {
@@ -146,6 +145,7 @@ io.on('connection', socket => {
                         removeCard(curPlayer.hand.indexOf('BOMB'))
                         state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
                         messageAll(`${curPlayer.username} DEFUSED THE BOMB AND ADDED BACK AT HALFWAY POINT (bit crap)`)
+                        curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
                     })
                 }
                 break
