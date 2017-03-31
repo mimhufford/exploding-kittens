@@ -15,8 +15,11 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 
 // TODO
 // - ending is still fucked
-// - where to insert bomb after defuse
-// - triple pair
+// - triple pair - let the user chose pair or triple though
+// - disable playing other cards while noping
+// - don't ask which player if it's a two player game
+// - can you play more cards after defusing the bomb?
+// - reinserting bomb needs to add 1 to the upper bound
 
 const state = {
     history: [],          // previous states
@@ -143,6 +146,7 @@ io.on('connection', socket => {
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
                     playCardWithDelay(() => {
                         socket.emit('choice', { message: `Where? 1-${state.deck.length}`, choices: [] }, position => {
+                            // ROBUSTNESS: client reponse not validated
                             removeCard(curPlayer.hand.indexOf('BOMB'))
                             state.deck.splice(position - 1, 0, "BOMB")
                             messageAll(`${curPlayer.username} DEFUSED THE BOMB AND ADDED BACK TO THE DECK`)
@@ -184,12 +188,7 @@ io.on('connection', socket => {
                 if (isTheirTurn && hasCard(data.data, data.index)) {
                     removeCard(data.index)
 
-                    state.waitingForUser = socket
-                    // TODO: pause game
-                    socket.emit('choice', { message: "Which player?", choices: otherPlayers.map(p => p.username) }, response => {
-                        // TODO: resume game
-                        // ROBUSTNESS: assumes the response from the client is valid
-                        const target = otherPlayers.filter(p => p.username === response)[0]
+                    const doFavour = target => {
                         messageAll(`${curPlayer.username} IS ASKING ${target.username} FOR A FAVOUR`)
                         playCardWithDelay(() => {
                             target.socket.emit('choice', { message: "Which card?", choices: target.hand }, response => {
@@ -199,9 +198,22 @@ io.on('connection', socket => {
                                 curPlayer.hand.push(response)
                                 messageAll(`${curPlayer.username} TOOK A FAVOUR FROM ${target.username}`)
                                 emitState(state)
+                                // TODO: resume game
                             })
                         })
-                    })
+                    }
+
+                    // TODO: pause game
+                    if (otherPlayers.length === 1) {
+                        doFavour(otherPlayers[0])
+                    }
+                    else {
+                        socket.emit('choice', { message: "Which player?", choices: otherPlayers.map(p => p.username) }, response => {
+                            // ROBUSTNESS: assumes the response from the client is valid
+                            const target = otherPlayers.filter(p => p.username === response)[0]
+                            doFavour(target)
+                        })
+                    }
                 }
                 break
             case 'SKIP':
@@ -241,7 +253,7 @@ io.on('connection', socket => {
                         // remove the 2 cards
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
-                        //TODO: pause game
+                        // TODO: pause game
                         socket.emit(
                             'choice',
                             { message: "Which player?", choices: otherPlayers.map(p => p.username) },
