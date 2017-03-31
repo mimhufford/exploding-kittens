@@ -142,10 +142,13 @@ io.on('connection', socket => {
                     removeCard('DEFUSE')
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
                     playCardWithDelay(() => {
-                        removeCard(curPlayer.hand.indexOf('BOMB'))
-                        state.deck.splice(Math.ceil(state.deck.length / 2), 0, "BOMB")
-                        messageAll(`${curPlayer.username} DEFUSED THE BOMB AND ADDED BACK AT HALFWAY POINT (bit crap)`)
-                        curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
+                        socket.emit('choice', { message: `Where? 1-${state.deck.length}`, choices: [] }, position => {
+                            removeCard(curPlayer.hand.indexOf('BOMB'))
+                            state.deck.splice(position - 1, 0, "BOMB")
+                            messageAll(`${curPlayer.username} DEFUSED THE BOMB AND ADDED BACK TO THE DECK`)
+                            curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
+                            emitState(state)
+                        })
                     })
                 }
                 break
@@ -244,7 +247,7 @@ io.on('connection', socket => {
                             { message: "Which player?", choices: otherPlayers.map(p => p.username) },
                             response => {
                                 // TODO: resume game
-                                // ROBUSTNESS: assumes the response from the client is valid
+                                // ROBUSTNESS: assumes the response from the client is valid                    
                                 const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
                                 messageAll(`${curPlayer.username} IS GOING TO STEAL A CARD FROM ${chosenPlayer.username}`)
                                 playCardWithDelay(() => {
