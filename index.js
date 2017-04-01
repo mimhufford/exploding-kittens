@@ -17,9 +17,7 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // - ending is still fucked
 // - triple pair - let the user chose pair or triple though
 // - disable playing other cards while noping
-// - don't ask which player if it's a two player game
 // - can you play more cards after defusing the bomb?
-// - reinserting bomb needs to add 1 to the upper bound
 
 const state = {
     history: [],          // previous states
@@ -145,7 +143,7 @@ io.on('connection', socket => {
                     removeCard('DEFUSE')
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
                     playCardWithDelay(() => {
-                        socket.emit('choice', { message: `Where? 1-${state.deck.length}`, choices: [] }, position => {
+                        socket.emit('choice', { message: `Where? 1-${state.deck.length + 1}`, choices: [] }, position => {
                             // ROBUSTNESS: client reponse not validated
                             removeCard(curPlayer.hand.indexOf('BOMB'))
                             state.deck.splice(position - 1, 0, "BOMB")
