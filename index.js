@@ -253,29 +253,42 @@ io.on('connection', socket => {
                         // remove the 2 cards
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
-                        // TODO: pause game
-                        socket.emit(
-                            'choice',
-                            { message: "Which player?", choices: otherPlayers.map(p => p.username) },
-                            response => {
-                                // TODO: resume game
-                                // ROBUSTNESS: assumes the response from the client is valid                    
-                                const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
-                                messageAll(`${curPlayer.username} IS GOING TO STEAL A CARD FROM ${chosenPlayer.username}`)
-                                playCardWithDelay(() => {
-                                    const amount = chosenPlayer.hand.length
-                                    socket.emit("choice", { message: `Which card? (from 1 - ${amount})`, choices: "ARRAY OF INDICES" }, cardIndex => {
-                                        const card = chosenPlayer.hand[cardIndex - 1]
-                                        removeCardFrom(chosenPlayer, cardIndex - 1)
-                                        curPlayer.hand.push(card)
-                                        messageAll(`${curPlayer.username} STOLE A CARD FROM ${chosenPlayer.username}`)
-                                        emitState(state)
-                                        messageCurPlayer(`You stole a ${card}`)
-                                        chosenPlayer.socket.emit("message", `They stole your ${card}`)
-                                    })
+
+                        const doPair = chosenPlayer => {
+                            messageAll(`${curPlayer.username} IS GOING TO STEAL A CARD FROM ${chosenPlayer.username}`)
+                            playCardWithDelay(() => {
+                                socket.emit("choice", {
+                                    message: `Which card? (from 1 - ${chosenPlayer.hand.length})`,
+                                    choices: "ARRAY OF INDICES"
+                                }, cardIndex => {
+                                    // ROBUSTNESS: assumes response from client is valid
+                                    const card = chosenPlayer.hand[cardIndex - 1]
+                                    removeCardFrom(chosenPlayer, cardIndex - 1)
+                                    curPlayer.hand.push(card)
+                                    messageAll(`${curPlayer.username} STOLE A CARD FROM ${chosenPlayer.username}`)
+                                    emitState(state)
+                                    messageCurPlayer(`You stole a ${card}`)
+                                    chosenPlayer.socket.emit("message", `They stole your ${card}`)
+                                    // TODO: resume game
                                 })
-                            }
-                        )
+                            })
+                        }
+
+                        // TODO: pause game
+                        if (otherPlayers.length === 1) {
+                            doPair(otherPlayers[0])
+                        }
+                        else {
+                            socket.emit(
+                                'choice',
+                                { message: "Which player?", choices: otherPlayers.map(p => p.username) },
+                                response => {
+                                    // ROBUSTNESS: assumes the response from the client is valid                    
+                                    const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
+                                    doPair(chosenPlayer)
+                                }
+                            )
+                        }
                     }
                 }
                 break
