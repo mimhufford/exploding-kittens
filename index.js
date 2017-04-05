@@ -16,7 +16,7 @@ app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'))
 // TODO
 // - ending is still fucked
 // - triple pair - let the user chose pair or triple though
-// - disable playing other cards while noping
+// - disable playing other cards while noping (client side)
 // - can you play more cards after defusing the bomb?
 
 const state = {
@@ -119,7 +119,7 @@ io.on('connection', socket => {
 
         switch (data.data.toUpperCase()) {
             case 'DONE':
-                if (notTheirTurn) break
+                if (notTheirTurn || state.canNope) break
                 if (curPlayer.hand.includes("BOMB")) {
                     messageAll(curPlayer.username + " EXPLODED!")
                     state.whosTurn = nextPlayer.id
@@ -138,7 +138,7 @@ io.on('connection', socket => {
                 state.whosTurn = nextPlayer.id
                 break
             case 'DEFUSE':
-                if (notTheirTurn) break
+                if (notTheirTurn || state.canNope) break
                 if (curPlayer.hand.includes("BOMB") && hasCard(data.data, data.index)) {
                     removeCard('DEFUSE')
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
@@ -163,7 +163,7 @@ io.on('connection', socket => {
                 }
                 break
             case 'FUTURE':
-                if (isTheirTurn && hasCard(data.data, data.index)) {
+                if (isTheirTurn && hasCard(data.data, data.index) && !state.canNope) {
                     removeCard(data.index)
                     messageAll(`${curPlayer.username} IS GOING TO VIEW FUTURE`)
                     playCardWithDelay(() => {
@@ -173,7 +173,7 @@ io.on('connection', socket => {
                 }
                 break
             case 'SHUFFLE':
-                if (isTheirTurn && hasCard(data.data, data.index)) {
+                if (isTheirTurn && hasCard(data.data, data.index && !state.canNope)) {
                     removeCard(data.index)
                     messageAll(`${curPlayer.username} IS GOING TO SHUFFLE THE DECK`)
                     playCardWithDelay(() => {
@@ -183,7 +183,7 @@ io.on('connection', socket => {
                 }
                 break
             case 'FAVOUR':
-                if (isTheirTurn && hasCard(data.data, data.index)) {
+                if (isTheirTurn && hasCard(data.data, data.index && !state.canNope)) {
                     removeCard(data.index)
 
                     const doFavour = target => {
@@ -215,7 +215,7 @@ io.on('connection', socket => {
                 }
                 break
             case 'SKIP':
-                if (isTheirTurn && hasCard(data.data, data.index)) {
+                if (isTheirTurn && hasCard(data.data, data.index) && !state.canNope) {
                     removeCard(data.index)
                     messageAll(`${curPlayer.username} WANTS TO SKIP PICKING UP`)
                     playCardWithDelay(() => {
@@ -225,7 +225,7 @@ io.on('connection', socket => {
                 }
                 break
             case 'ATTACK':
-                if (isTheirTurn && hasCard(data.data, data.index)) {
+                if (isTheirTurn && hasCard(data.data, data.index) && !state.canNope) {
                     removeCard(data.index)
                     messageAll(`${curPlayer.username} IS GOING TO ATTACK ${nextPlayer.username}`)
                     playCardWithDelay(() => {
@@ -241,7 +241,7 @@ io.on('connection', socket => {
             case 'SCHRODINGER':
             case 'BLADDER':
             case 'PAIR':
-                if (isTheirTurn) {
+                if (isTheirTurn && !state.canNope) {
 
                     // search for pairs
                     const pairs = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
