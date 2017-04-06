@@ -173,7 +173,7 @@ io.on('connection', socket => {
                 }
                 break
             case 'SHUFFLE':
-                if (isTheirTurn && hasCard(data.data, data.index && !state.canNope)) {
+                if (isTheirTurn && hasCard(data.data, data.index) && !state.canNope) {
                     removeCard(data.index)
                     messageAll(`${curPlayer.username} IS GOING TO SHUFFLE THE DECK`)
                     playCardWithDelay(() => {
@@ -183,7 +183,7 @@ io.on('connection', socket => {
                 }
                 break
             case 'FAVOUR':
-                if (isTheirTurn && hasCard(data.data, data.index && !state.canNope)) {
+                if (isTheirTurn && hasCard(data.data, data.index) && !state.canNope) {
                     removeCard(data.index)
 
                     const doFavour = target => {
