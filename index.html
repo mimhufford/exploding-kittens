@@ -25,9 +25,7 @@
 <body>
     <dialog id="choice">
         <h1 id="choice-title"></h1>
-        <ul id="choice-choices">
-
-        </ul>
+        <div id="choice-choices"></div>
         <button onclick="submitChoice()">Submit</button>
     </dialog>
 
@@ -71,6 +69,11 @@
         }
 
         socket.on('choice', (data, response) => {
+            $('#choice-title').html(data.message)
+            $('#choice-choices').empty()
+            data.choices.forEach(choice => {
+                $('#choice-choices').append(`<input type="radio" name="group" value="${choice}">${choice}`)
+            })
             document.getElementById('choice').showModal()
             // TODO: validate input
             const choice = prompt(data.message + " " + data.choices)
