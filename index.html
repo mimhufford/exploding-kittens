@@ -72,8 +72,8 @@
         socket.on('choice', (data, response) => {
             $('#choice-title').html(data.message)
             $('#choice-choices').empty()
-            data.choices.forEach(choice => {
-                $('#choice-choices').append(`<input type="radio" name="group" value="${choice}">${choice}`)
+            data.choices.forEach((choice, id) => {
+                $('#choice-choices').append(`<input type="radio" name="group" id="${choice}${id}" value="${choice}"><label for="${choice}${id}">${choice}</label>`)
             })
             document.getElementById('choice').showModal()
             // TODO: validate input
