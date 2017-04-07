@@ -143,7 +143,7 @@ io.on('connection', socket => {
                     removeCard('DEFUSE')
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
                     playCardWithDelay(() => {
-                        socket.emit('choice', { message: `Where? 1-${state.deck.length + 1}`, choices: [] }, position => {
+                        socket.emit('choice', { message: `Where?`, choices: [...Array(state.deck.length).keys()] }, position => {
                             // ROBUSTNESS: client reponse not validated
                             removeCard(curPlayer.hand.indexOf('BOMB'))
                             state.deck.splice(position - 1, 0, "BOMB")
@@ -256,8 +256,8 @@ io.on('connection', socket => {
                             messageAll(`${curPlayer.username} IS GOING TO STEAL A CARD FROM ${chosenPlayer.username}`)
                             playCardWithDelay(() => {
                                 socket.emit("choice", {
-                                    message: `Which card? (from 1 - ${chosenPlayer.hand.length})`,
-                                    choices: "ARRAY OF INDICES"
+                                    message: `Which card?`,
+                                    choices: [...Array(chosenPlayer.hand.length).keys()]
                                 }, cardIndex => {
                                     // ROBUSTNESS: assumes response from client is valid
                                     const card = chosenPlayer.hand[cardIndex - 1]
