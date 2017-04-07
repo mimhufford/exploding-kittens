@@ -65,6 +65,7 @@
         socket.on('counts', counts => { console.log(counts) })
 
         const submitChoice = () => {
+            const choice = $("#choice-choices input:radio[name='group']:checked").val()
             document.getElementById('choice').close()
         }
 
