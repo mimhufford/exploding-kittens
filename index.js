@@ -144,7 +144,6 @@ io.on('connection', socket => {
                     messageAll(`${curPlayer.username} IS GOING TO DEFUSE THE BOMB`)
                     playCardWithDelay(() => {
                         socket.emit('choice', { message: `Where?`, choices: [...Array(state.deck.length).keys()] }, position => {
-                            // ROBUSTNESS: client reponse not validated
                             removeCard(curPlayer.hand.indexOf('BOMB'))
                             state.deck.splice(position, 0, "BOMB")
                             messageAll(`${curPlayer.username} DEFUSED THE BOMB AND ADDED BACK TO THE DECK`)
@@ -190,7 +189,6 @@ io.on('connection', socket => {
                         messageAll(`${curPlayer.username} IS ASKING ${target.username} FOR A FAVOUR`)
                         playCardWithDelay(() => {
                             target.socket.emit('choice', { message: "Which card?", choices: target.hand }, response => {
-                                // ROBUSTNESS: assumes the response from the client is valid
                                 const index = target.hand.indexOf(response)
                                 removeCardFrom(target, index)
                                 curPlayer.hand.push(response)
@@ -207,7 +205,6 @@ io.on('connection', socket => {
                     }
                     else {
                         socket.emit('choice', { message: "Which player?", choices: otherPlayers.map(p => p.username) }, response => {
-                            // ROBUSTNESS: assumes the response from the client is valid
                             const target = otherPlayers.filter(p => p.username === response)[0]
                             doFavour(target)
                         })
@@ -259,7 +256,6 @@ io.on('connection', socket => {
                                     message: `Which card?`,
                                     choices: [...Array(chosenPlayer.hand.length).keys()]
                                 }, cardIndex => {
-                                    // ROBUSTNESS: assumes response from client is valid
                                     const card = chosenPlayer.hand[cardIndex]
                                     removeCardFrom(chosenPlayer, cardIndex)
                                     curPlayer.hand.push(card)
@@ -281,7 +277,6 @@ io.on('connection', socket => {
                                 'choice',
                                 { message: "Which player?", choices: otherPlayers.map(p => p.username) },
                                 response => {
-                                    // ROBUSTNESS: assumes the response from the client is valid                    
                                     const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
                                     doPair(chosenPlayer)
                                 }
