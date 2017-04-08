@@ -146,7 +146,7 @@ io.on('connection', socket => {
                         socket.emit('choice', { message: `Where?`, choices: [...Array(state.deck.length).keys()] }, position => {
                             // ROBUSTNESS: client reponse not validated
                             removeCard(curPlayer.hand.indexOf('BOMB'))
-                            state.deck.splice(position - 1, 0, "BOMB")
+                            state.deck.splice(position, 0, "BOMB")
                             messageAll(`${curPlayer.username} DEFUSED THE BOMB AND ADDED BACK TO THE DECK`)
                             curPlayer.pickup = Math.max(0, curPlayer.pickup - 1)
                             emitState(state)
@@ -260,8 +260,8 @@ io.on('connection', socket => {
                                     choices: [...Array(chosenPlayer.hand.length).keys()]
                                 }, cardIndex => {
                                     // ROBUSTNESS: assumes response from client is valid
-                                    const card = chosenPlayer.hand[cardIndex - 1]
-                                    removeCardFrom(chosenPlayer, cardIndex - 1)
+                                    const card = chosenPlayer.hand[cardIndex]
+                                    removeCardFrom(chosenPlayer, cardIndex)
                                     curPlayer.hand.push(card)
                                     messageAll(`${curPlayer.username} STOLE A CARD FROM ${chosenPlayer.username}`)
                                     emitState(state)
