@@ -240,6 +240,9 @@ io.on('connection', socket => {
             case 'PAIR':
                 if (isTheirTurn && !state.canNope) {
 
+                    // TODO: triples
+                    const triples = _(curPlayer.hand).countBy().pickBy((v, k) => v > 2).map((v, k) => k).value()
+
                     // search for pairs
                     const pairs = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
                     const catPairs = _.intersection(pairs, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
