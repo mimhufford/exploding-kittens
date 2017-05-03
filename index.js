@@ -241,13 +241,23 @@ io.on('connection', socket => {
                 if (isTheirTurn && !state.canNope) {
 
                     // TODO: triples
-                    const triples = _(curPlayer.hand).countBy().pickBy((v, k) => v > 2).map((v, k) => k).value()
+                    const triples  = _(curPlayer.hand).countBy().pickBy((v, k) => v > 2).map((v, k) => k).value()
+                    const catTrips = _.intersection(pairs, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
 
                     // search for pairs
-                    const pairs = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
+                    const pairs    = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
                     const catPairs = _.intersection(pairs, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
 
-                    if (catPairs.length > 0) {
+                    if (catTrips.length > 0) {
+                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
+                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
+                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
+
+                        const doTriple = (chosenCard, chosenPlayer) => {
+                        }
+
+
+                    } else if (catPairs.length > 0) {
                         // remove the 2 cards
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
                         curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
