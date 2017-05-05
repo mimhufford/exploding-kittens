@@ -242,7 +242,7 @@ io.on('connection', socket => {
 
                     // TODO: triples
                     const triples  = _(curPlayer.hand).countBy().pickBy((v, k) => v > 2).map((v, k) => k).value()
-                    const catTrips = _.intersection(pairs, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
+                    const catTrips = _.intersection(triples, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
 
                     // search for pairs
                     const pairs    = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
