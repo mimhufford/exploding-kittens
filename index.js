@@ -32,6 +32,11 @@ const state = {
     nopeCount: 0,         // how many nopes were played?
 }
 
+const cards = {
+    NOPE: 5, ATTACK: 4, SKIP: 4, FUTURE: 5, SHUFFLE: 4, FAVOUR: 4,
+    ZOMBIE: 4, BIKINI: 4, SCHRODINGER: 4, MOMMA: 4, BLADDER: 4
+}
+
 const emitHands = state => state.players.forEach(p => p.socket.emit('hand', p.hand))
 const emitTurn = state => state.players.forEach(p => p.socket.emit('turn', state.whosTurn))
 const emitCounts = state => state.players.forEach(p => p.socket.emit('counts', { deck: state.deck.length, players: state.players.map(p1 => ({ username: p1.username, cards: p1.hand.length })) }))
@@ -241,21 +246,42 @@ io.on('connection', socket => {
                 if (isTheirTurn && !state.canNope) {
 
                     // TODO: triples
-                    const triples  = _(curPlayer.hand).countBy().pickBy((v, k) => v > 2).map((v, k) => k).value()
+                    const triples = _(curPlayer.hand).countBy().pickBy((v, k) => v > 2).map((v, k) => k).value()
                     const catTrips = _.intersection(triples, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
 
                     // search for pairs
-                    const pairs    = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
+                    const pairs = _(curPlayer.hand).countBy().pickBy((v, k) => v > 1).map((v, k) => k).value()
                     const catPairs = _.intersection(pairs, ['ZOMBIE', 'BIKINI', 'SCHRODINGER', 'MOMMA', 'BLADDER'])
 
                     if (catTrips.length > 0) {
-                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
-                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
-                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catPairs[0]))
+                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catTrips[0]))
+                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catTrips[0]))
+                        curPlayer.hand = curPlayer.hand.filter((card, index) => index != curPlayer.hand.indexOf(catTrips[0]))
 
-                        const doTriple = (chosenCard, chosenPlayer) => {
+                        const doTripleInner = (chosenCard, chosenPlayer) => {
+
                         }
 
+                        const doTriple = (chosenCard, chosenPlayer) => {
+                            socket.emit("choice", {
+                                message: `Which card are you after?`,
+                                choices: cards,
+                            }, cardName => {
+                                if (otherPlayers.length === 1) {
+                                    doPair(otherPlayers[0])
+                                }
+                                else {
+                                    socket.emit(
+                                        'choice',
+                                        { message: "Which player?", choices: otherPlayers.map(p => p.username) },
+                                        response => {
+                                            const chosenPlayer = otherPlayers.filter(p => p.username === response)[0]
+                                            doTripleInner(cardName, chosenPlayer)
+                                        }
+                                    )
+                                }
+                            })
+                        }
 
                     } else if (catPairs.length > 0) {
                         // remove the 2 cards
@@ -318,11 +344,6 @@ io.on('connection', socket => {
 http.listen(3000)
 
 const setup = players => {
-    const cards = {
-        NOPE: 5, ATTACK: 4, SKIP: 4, FUTURE: 5, SHUFFLE: 4, FAVOUR: 4,
-        ZOMBIE: 4, BIKINI: 4, SCHRODINGER: 4, MOMMA: 4, BLADDER: 4
-    }
-
     const deck = _(cards).flatMap((amtOfCard, cardID) => Array(amtOfCard).fill(cardID)).shuffle().value()
 
     const gamePlayers = players.map(socket => {
